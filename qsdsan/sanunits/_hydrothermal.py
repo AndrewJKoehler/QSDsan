@@ -428,7 +428,7 @@ class HydrothermalLiquefaction(Reactor):
         April 5, 2013; NREL/SR-5100-60462, 1111191; 2013; p NREL/SR-5100-60462,
         1111191. https://doi.org/10.2172/1111191.
     '''
-    _N_ins = 1
+    _N_ins = 2
     _N_outs = 4
     _units= {'Treatment capacity': 'lb/h',
              'Solid filter and separator weight': 'lb'}
@@ -439,7 +439,8 @@ class HydrothermalLiquefaction(Reactor):
                      'Heat exchanger': 3.17}
 
     def __init__(self, ID='', ins=None, outs=(), thermo=None,
-                 init_with='WasteStream',
+                 init_with='Stream',
+                 NaOH_mol = 1,                
                  lipid_2_biocrude=0.846, # [1]
                  protein_2_biocrude=0.445, # [1]
                  carbo_2_biocrude=0.205, # [1]
@@ -474,6 +475,7 @@ class HydrothermalLiquefaction(Reactor):
                  mositure_adjustment_exist_in_the_system=False):
         
         SanUnit.__init__(self, ID, ins, outs, thermo, init_with)
+        self.NaOH_mol = NaOH_mol
         self.lipid_2_biocrude = lipid_2_biocrude
         self.protein_2_biocrude = protein_2_biocrude
         self.carbo_2_biocrude = carbo_2_biocrude
@@ -516,8 +518,8 @@ class HydrothermalLiquefaction(Reactor):
         self.mositure_adjustment_exist_in_the_system = mositure_adjustment_exist_in_the_system
 
     def _run(self):
-        
-        dewatered_sludge = self.ins[0]
+        #add NaOH
+        dewatered_sludge, NAOH_in = self.ins
         hydrochar, HTLaqueous, biocrude, offgas = self.outs
         
         if self.mositure_adjustment_exist_in_the_system == True:
@@ -534,7 +536,16 @@ class HydrothermalLiquefaction(Reactor):
         self.afdw_lipid_ratio = self.WWTP.sludge_afdw_lipid
         self.afdw_protein_ratio = self.WWTP.sludge_afdw_protein
         self.afdw_carbo_ratio = self.WWTP.sludge_afdw_carbo
+#question - does dewatered_sludge include the weight of water? YES
+#question - What is dewatered_sludge - dewatered_sludge_afdw = weight of ash, weight of ash + water, or weight of wawter?
 
+        NAOH_in.imass['NaOH'] = dewatered_sludge.imass['H2O']*self.NaOH_mol*0.04
+       # dewatered_sludge.imass['H2O'] -= NAOH_in.imass['NaOH']
+        #units are kilograms/hour
+        
+        #dewatered_sludge_afdw = sludge dry weight - multiply by 4 to reach mass of water added to system (assuming 80% water, 20% biosolid)
+        #1M is 4% of 10M NaOH, so multiply by 0.04 to reach 1 M
+        
         # the following calculations are based on revised MCA model
         hydrochar.imass['Hydrochar'] = 0.377*self.afdw_carbo_ratio*dewatered_sludge_afdw
         
@@ -560,7 +571,11 @@ class HydrothermalLiquefaction(Reactor):
                                 
         HTLaqueous.imass['H2O'] = dewatered_sludge.F_mass - hydrochar.F_mass -\
                                   biocrude.F_mass - gas_mass - HTLaqueous.imass['HTLaqueous']
-        # assume ash (all soluble based on Jones) goes to water
+         # assume ash (all soluble based on Jones) goes to water
+         
+        HTLaqueous.imass['NaOH'] = NAOH_in.imass['NaOH']
+        #AJK set output NaOH mass = to input NaOH mass
+
         
         hydrochar.phase = 's'
         offgas.phase = 'g'
@@ -572,6 +587,8 @@ class HydrothermalLiquefaction(Reactor):
         offgas.P = self.offgas_pre
         
         for stream in self.outs : stream.T = self.heat_exchanger.T
+        
+#add property   pH - follow the format below
         
     @property
     def biocrude_yield(self):

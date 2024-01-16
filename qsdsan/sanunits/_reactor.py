@@ -134,7 +134,8 @@ class Reactor(SanUnit, PressureVessel, isabstract=True):
                 ins_F_vol -= (self.ins[i].ivol['H2'] +\
                               self.ins[i].ivol['CHG_catalyst'] +\
                               self.ins[i].ivol['HT_catalyst'] +\
-                              self.ins[i].ivol['HC_catalyst'])
+                              self.ins[i].ivol['HC_catalyst'] +\
+                              self.ins[i].ivol['NaOH'])
             # not include gas (e.g. H2)
             V_total = ins_F_vol * self.tau / self.V_wf
         P = self.P * _Pa_to_psi # Pa to psi
