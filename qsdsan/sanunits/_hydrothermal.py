@@ -527,11 +527,22 @@ class HydrothermalLiquefaction(Reactor):
                              _source.ins[0]._source
         else:
             self.WWTP = self.ins[0]._source.ins[0]._source.ins[0]._source
+        #dewatered_sludge.imass['']
+        #set as a parameter for what I did for NaOH_mol
+        #make changes to systems.py
+        #after this, adjust dewatered_sludge_afdw (function directly below this)
+        
         
         dewatered_sludge_afdw = dewatered_sludge.imass['Sludge_lipid'] +\
                                 dewatered_sludge.imass['Sludge_protein'] +\
                                 dewatered_sludge.imass['Sludge_carbo']
+        
         # just use afdw in revised MCA model, other places use dw
+        
+        dewatered_sludge.imass['PFOS']=403*10^-9*dewatered_sludge_afdw
+        dewatered_sludge.imass['PFOA']=34*10^-9*dewatered_sludge_afdw
+        dewatered_sludge.imass['PFHxS']=5.9*10^-9*dewatered_sludge_afdw
+        dewatered_sludge.imass['PFHxA']=6.2*10^-9*dewatered_sludge_afdw
         
         self.afdw_lipid_ratio = self.WWTP.sludge_afdw_lipid
         self.afdw_protein_ratio = self.WWTP.sludge_afdw_protein
