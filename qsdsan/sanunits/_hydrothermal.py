@@ -397,6 +397,10 @@ class HydrothermalLiquefaction(Reactor):
         HTL effluent temperature, [K].
     CAPEX_factor: float
         Factor used to adjust CAPEX.
+    HTL_steel_cost_factor: float
+        Factor used to adjust the cost of stainless steel.
+    mositure_adjustment_exist_in_the_system: bool
+        If a moisture adjustment unit exists, set to true.
         
     References
     ----------
@@ -527,16 +531,15 @@ class HydrothermalLiquefaction(Reactor):
                              _source.ins[0]._source
         else:
             self.WWTP = self.ins[0]._source.ins[0]._source.ins[0]._source
+            
         #dewatered_sludge.imass['']
         #set as a parameter for what I did for NaOH_mol
         #make changes to systems.py
         #after this, adjust dewatered_sludge_afdw (function directly below this)
         
-        
         dewatered_sludge_afdw = dewatered_sludge.imass['Sludge_lipid'] +\
                                 dewatered_sludge.imass['Sludge_protein'] +\
                                 dewatered_sludge.imass['Sludge_carbo']
-        
         # just use afdw in revised MCA model, other places use dw
         
         dewatered_sludge.imass['PFOS']=403*10^-9*dewatered_sludge_afdw
@@ -547,12 +550,13 @@ class HydrothermalLiquefaction(Reactor):
         self.afdw_lipid_ratio = self.WWTP.sludge_afdw_lipid
         self.afdw_protein_ratio = self.WWTP.sludge_afdw_protein
         self.afdw_carbo_ratio = self.WWTP.sludge_afdw_carbo
-#question - does dewatered_sludge include the weight of water? YES
-#question - What is dewatered_sludge - dewatered_sludge_afdw = weight of ash, weight of ash + water, or weight of wawter?
+        
+        #question - does dewatered_sludge include the weight of water? YES
+        #question - What is dewatered_sludge - dewatered_sludge_afdw = weight of ash, weight of ash + water, or weight of wawter?
 
         NAOH_in.imass['NaOH'] = dewatered_sludge.imass['H2O']*self.NaOH_mol*0.04
-       # dewatered_sludge.imass['H2O'] -= NAOH_in.imass['NaOH']
-        #units are kilograms/hour
+        # dewatered_sludge.imass['H2O'] -= NAOH_in.imass['NaOH']
+        # units are kilograms/hour
         
         #dewatered_sludge_afdw = sludge dry weight - multiply by 4 to reach mass of water added to system (assuming 80% water, 20% biosolid)
         #1M is 4% of 10M NaOH, so multiply by 0.04 to reach 1 M
@@ -582,11 +586,10 @@ class HydrothermalLiquefaction(Reactor):
                                 
         HTLaqueous.imass['H2O'] = dewatered_sludge.F_mass - hydrochar.F_mass -\
                                   biocrude.F_mass - gas_mass - HTLaqueous.imass['HTLaqueous']
-         # assume ash (all soluble based on Jones) goes to water
+        # assume ash (all soluble based on Jones) goes to water
          
         HTLaqueous.imass['NaOH'] = NAOH_in.imass['NaOH']
-        #AJK set output NaOH mass = to input NaOH mass
-
+        # AJK set output NaOH mass = to input NaOH mass
         
         hydrochar.phase = 's'
         offgas.phase = 'g'
@@ -599,7 +602,7 @@ class HydrothermalLiquefaction(Reactor):
         
         for stream in self.outs : stream.T = self.heat_exchanger.T
         
-#add property   pH - follow the format below
+    # add property pH - follow the format below
         
     @property
     def biocrude_yield(self):
