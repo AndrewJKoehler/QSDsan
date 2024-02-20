@@ -401,7 +401,11 @@ class HydrothermalLiquefaction(Reactor):
         Factor used to adjust the cost of stainless steel.
     mositure_adjustment_exist_in_the_system: bool
         If a moisture adjustment unit exists, set to true.
-        
+    rxn_time: float
+        time of HTL reaction, [min]
+    rxn_temp: float
+        temp of HTL reaction, [C]
+               
     References
     ----------
     [1] Leow, S.; Witter, J. R.; Vardon, D. R.; Sharma, B. K.;
@@ -432,6 +436,7 @@ class HydrothermalLiquefaction(Reactor):
         April 5, 2013; NREL/SR-5100-60462, 1111191; 2013; p NREL/SR-5100-60462,
         1111191. https://doi.org/10.2172/1111191.
     '''
+#TODO add temp and time to HTL, add it as a property (adding property allows calling)
     _N_ins = 2
     _N_outs = 4
     _units= {'Treatment capacity': 'lb/h',
