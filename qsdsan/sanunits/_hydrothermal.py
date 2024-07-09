@@ -325,7 +325,7 @@ class KnockOutDrum(Reactor):
         purchase_costs['Vertical pressure vessel'] *= self.drum_steel_cost_factor
 
 # =============================================================================
-# HTL (future name, HTL_MCA)
+# HTL_MCA
 # =============================================================================
 
 # separator
@@ -448,6 +448,9 @@ class HydrothermalLiquefactionMCA(Reactor):
     def __init__(self, ID='', ins=None, outs=(), thermo=None,
                  init_with='Stream',
                  NaOH_mol = 1,
+                 rxn_temp = 350,
+                 rxn_time = 60,
+                 sludge_moisture = 0.8,
                  lipid_2_biocrude=0.846, # [1]
                  protein_2_biocrude=0.445, # [1]
                  carbo_2_biocrude=0.205, # [1]
@@ -470,7 +473,7 @@ class HydrothermalLiquefactionMCA(Reactor):
                  biocrude_pre=30*6894.76, # [4]
                  offgas_pre=30*6894.76, # [4]
                  eff_T=60+273.15, # [4]
-                 P=None, tau=15/60, V_wf=0.45,
+                 P=None, V_wf=0.45, #tau is reaction time
                  length_to_diameter=None, diameter=6.875*_in_to_m,
                  N=4, V=None, auxiliary=False,
                  mixing_intensity=None, kW_per_m3=0,
@@ -483,6 +486,9 @@ class HydrothermalLiquefactionMCA(Reactor):
         
         SanUnit.__init__(self, ID, ins, outs, thermo, init_with)
         self.NaOH_mol = NaOH_mol
+        self.rxn_temp = rxn_temp
+        self.rxn_time = rxn_time
+        self.sludge_moisture = sludge_moisture
         self.lipid_2_biocrude = lipid_2_biocrude
         self.protein_2_biocrude = protein_2_biocrude
         self.carbo_2_biocrude = carbo_2_biocrude
@@ -508,7 +514,7 @@ class HydrothermalLiquefactionMCA(Reactor):
         self.heat_exchanger = HXutility(ID=f'.{ID}_hx', ins=hx_in, outs=hx_out, T=eff_T, rigorous=True)
         self.kodrum = KnockOutDrum(ID=f'.{ID}_KOdrum')
         self.P = P
-        self.tau = tau
+        self.tau = self.rxn_time/60
         self.V_wf = V_wf
         self.length_to_diameter = length_to_diameter
         self.diameter = diameter
@@ -548,6 +554,9 @@ class HydrothermalLiquefactionMCA(Reactor):
         PFAS_in.imass['C6HF13O3S']=5.9*10**-9*dewatered_sludge_afdw
         PFAS_in.imass['C6HF11O2']=6.2*10**-9*dewatered_sludge_afdw
         
+        
+
+        
         self.afdw_lipid_ratio = self.WWTP.sludge_afdw_lipid
         self.afdw_protein_ratio = self.WWTP.sludge_afdw_protein
         self.afdw_carbo_ratio = self.WWTP.sludge_afdw_carbo
@@ -562,6 +571,8 @@ class HydrothermalLiquefactionMCA(Reactor):
         #dewatered_sludge_afdw = sludge dry weight - multiply by 4 to reach mass of water added to system (assuming 80% water, 20% biosolid)
         #1M is 4% of 10M NaOH, so multiply by 0.04 to reach 1 M
         
+        #TODO ask Jianan how to add NaOH to sludge stream       
+       
         # the following calculations are based on revised MCA model
         hydrochar.imass['Hydrochar'] = 0.377*self.afdw_carbo_ratio*dewatered_sludge_afdw
         
@@ -605,6 +616,21 @@ class HydrothermalLiquefactionMCA(Reactor):
         
     # add property pH - follow the format below
     #TODO JIANAN - determine whether yields should be based on AFDW or Dry Weight
+    @property
+    def reaction_temp(self):
+        return self.rxn_temp
+   
+    @property
+    def reaction_time(self):
+        return self.rxn_time
+
+    @property
+    def NaOH_molarity(self):
+        return self.NaOH_mol
+    
+    @property
+    def model_type(self):
+        return "MCA"
     
     @property
     def biocrude_yield(self):
@@ -873,9 +899,11 @@ class HydrothermalLiquefactionKinetics(Reactor):
     def __init__(self, ID='', ins=None, outs=(), thermo=None,
                   init_with='Stream',
                   feedstock = 'sludge',
+                  aq_pH = 9.85,
                   NaOH_mol = 1,
                   rxn_temp = 350,
                   rxn_time = 60,
+                  sludge_moisture = 0.8,
                   lipid_2_biocrude=0.846, # [1]
                   protein_2_biocrude=0.445, # [1]
                   carbo_2_biocrude=0.205, # [1]
@@ -910,10 +938,12 @@ class HydrothermalLiquefactionKinetics(Reactor):
                   mositure_adjustment_exist_in_the_system=False):
         
         SanUnit.__init__(self, ID, ins, outs, thermo, init_with)
+        self.aq_pH = aq_pH
         self.NaOH_mol = NaOH_mol
         self.feedstock = feedstock
         self.rxn_temp = rxn_temp
         self.rxn_time = rxn_time
+        self.sludge_moisture = sludge_moisture
         self.lipid_2_biocrude = lipid_2_biocrude
         self.protein_2_biocrude = protein_2_biocrude
         self.carbo_2_biocrude = carbo_2_biocrude
@@ -939,7 +969,7 @@ class HydrothermalLiquefactionKinetics(Reactor):
         self.heat_exchanger = HXutility(ID=f'.{ID}_hx', ins=hx_in, outs=hx_out, T=eff_T, rigorous=True)
         self.kodrum = KnockOutDrum(ID=f'.{ID}_KOdrum')
         self.P = P
-        self.tau = tau
+        self.tau = self.rxn_time/60
         self.V_wf = V_wf
         self.length_to_diameter = length_to_diameter
         self.diameter = diameter
@@ -975,13 +1005,58 @@ class HydrothermalLiquefactionKinetics(Reactor):
                                 dewatered_sludge.imass['Sludge_carbo'] +\
                                 dewatered_sludge.imass['Sludge_lignin']
         self.dewatered_sludge_afdw = dewatered_sludge_afdw
- #TODO add 'Sludge_lignin' to systems.py  
-                                 
+ # #TODO add 'Sludge_lignin' to systems.py  
+ #        if NaOH_mol = 0:
+ #            NaOH_density = 1
+ #        elif NaOH_mol = 1:
+ #            NaOH_density = 1.04
+ #        elif NaOH_mol = 2:
+ #            NaOH_density = 1.08
+ #        elif NaOH_mol = 3:
+ #            NaOH_density = 1.13
+
+                         
         # just use afdw in revised MCA model, other places use dw
-        PFAS_in.imass['C8HF17O3S']=403*10**-9*dewatered_sludge_afdw
-        PFAS_in.imass['C8HF15O2']=34*10**-9*dewatered_sludge_afdw
-        PFAS_in.imass['C6HF13O3S']=5.9*10**-9*dewatered_sludge_afdw
-        PFAS_in.imass['C6HF11O2']=6.2*10**-9*dewatered_sludge_afdw
+        PFAS_in.imass['C8HF17O3S']=403*10**-9*dewatered_sludge_afdw #PFOS
+        PFAS_in.imass['C8HF15O2']=34*10**-9*dewatered_sludge_afdw #PFOA
+        PFAS_in.imass['C6HF13O3S']=5.9*10**-9*dewatered_sludge_afdw #PFHxS
+        PFAS_in.imass['C6HF11O2']=6.2*10**-9*dewatered_sludge_afdw #PFHxA
+
+
+        #Molarity * volume in L = moles
+        #dewatered_sludge.imass['H2O'] is water mass in kg, converted to L (1kg=1L water)
+        #divide by mass of dewatered_sludge_afdw
+#        breakpoint()
+        destruction_potential = (self.NaOH_mol*dewatered_sludge.imass['H2O'])/(self.dewatered_sludge_afdw+dewatered_sludge.imass['Sludge_ash'])
+        #destruction_potential is mol of NaOH/kg of wastewater solid
+        
+        #### impact of time on PFAS destruction
+        if self.rxn_time <25: #no noticable destruction before 25 minutes
+            time_dest_PFHxS = 0
+            time_dest_PFOS = 0
+        elif self.rxn_time >= 25 and self.rxn_time < 35: #between 25 and 35 minutes, destruction does not change
+            time_dest_PFHxS = 0.547
+            time_dest_PFOS = 0.572
+        elif self.rxn_time >= 35 and self.rxn_time < 60: #destruction is linear from 35-60 minutes
+            time_dest_PFHxS = self.rxn_time * 1.647
+            time_dest_PFOS =  self.rxn_time * 1.664
+        elif self.rxn_time >=60:
+            time_dest_PFHxS = 1
+            time_dest_PFOS = 1    
+        
+        #### impact of temperature on PFAS destruction
+        #based on normalizing conditions to one hour
+        temp_dest_PFHxS = self.rxn_temp*0.016-4.694
+        temp_dest_PFOS = self.rxn_temp*0.016-4.187
+        
+        #TODO in experimental data, subtract ash weight from biosolids for all samples, make model based on ash free dry weight, NOT dry weight (current value)
+        
+        PFOS_dest = (4.8351*destruction_potential*time_dest_PFOS*temp_dest_PFOS)/100 #values from experiment, divide by 100 to convert percent to decimals
+        PFOA_dest = 1 #values from experiment - all PFCAs destroyed w/ or w/o alkali
+        PFHxS_dest = (4.6453*destruction_potential*time_dest_PFHxS*temp_dest_PFHxS)/100 #values from experiment, divide by 100 to convert percent to decimals
+        PFHxA_dest = 1 #values from experiment - all PFCAs destroyed w/ or w/o alkali
+        
+        #TODO aks Jianan, what happens to destroyed PFAS?
         
         self.afdw_lipid_ratio = self.WWTP.sludge_afdw_lipid
         self.afdw_protein_ratio = self.WWTP.sludge_afdw_protein
@@ -1000,6 +1075,10 @@ class HydrothermalLiquefactionKinetics(Reactor):
         #1M is 4% of 10M NaOH, so multiply by 0.04 to reach 1 M
  
         # the following calculations are based on the kinetics model
+        
+        ###pH calculations
+        
+        
         
         #k values are per second - adjusted to per minute value by dividing by 60 in def kinetics_odes function
         sludge_kinetics = {'250': [58.73,6,58.8,43.55,30,33.3,24,42.51,0.18,0.3,3.11,1.18,0.3,0.18,1.8,0.18,4.8],
@@ -1064,6 +1143,9 @@ class HydrothermalLiquefactionKinetics(Reactor):
         
         hydrochar.imass['Hydrochar'] = self.hydrochar_perc[self.rxn_time]*\
                                         self.dewatered_sludge_afdw
+        hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*PFOS_dest*0.02 #2% of PFOS goes to hydrochar post HTL, Yu et al 2020
+        hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*PFHxS_dest*0.02
+        
 #TODO match aq, gas, biocrude imass        
         HTLaqueous.imass['HTLaqueous'] = self.aqueous_perc[self.rxn_time]*\
                                           self.dewatered_sludge_afdw
@@ -1080,11 +1162,14 @@ class HydrothermalLiquefactionKinetics(Reactor):
             offgas.imass[name] = gas_mass*ratio
  #TODO ask Jianan where biocrude_moisture_content comes from  along with aquoeous phase
         biocrude.imass['Biocrude'] = self.biocrude_perc[self.rxn_time]*\
-                                        self.dewatered_sludge_afdw       
+                                        self.dewatered_sludge_afdw     
        
         biocrude.imass['H2O'] = biocrude.imass['Biocrude']/(1 -\
                                 self.biocrude_moisture_content) -\
                                 biocrude.imass['Biocrude']
+        
+        biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*PFOS_dest*0.98 #98% of PFOS goes to biocrude post HTL, Yu et al 2020
+        biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*PFHxS_dest*0.98
                                 
         HTLaqueous.imass['H2O'] = dewatered_sludge.F_mass - hydrochar.F_mass -\
                                   biocrude.F_mass - gas_mass - HTLaqueous.imass['HTLaqueous']
@@ -1108,34 +1193,45 @@ class HydrothermalLiquefactionKinetics(Reactor):
 #Note - when rxn_temp and rxn_time commented out, 
 #AttributeError: property 'rxn_temp' of 'HydrothermalLiquefactionKinetics' 
 #object has no setter
-
-#    @property
-#    def rxn_temp(self):
-#        return self.rxn_temp
-   
-#    @property
-#    def rxn_time(self):
-#        return self.rxn_time
- 
+#reason - can't name function same thing as variable
     @property
+    def aqueous_pH(self):
+        return self.aq_pH   
+
+    @property
+    def NaOH_molarity(self):
+        return self.NaOH_mol
+
+    @property
+    def reaction_temp(self):
+        return self.rxn_temp
+   
+    @property
+    def reaction_time(self):
+        return self.rxn_time
+    @property
+    def model_type(self):
+        return "Kinetics"
+
+    @property #yield (ratio) of total mass of solids (including ash)
     def biocrude_yield(self):
-        return self.biocrude_perc[self.rxn_time]*self.dewatered_sludge_afdw.F_mass/\
-            (self.ins[0].F_mass-self.ins[0].imass['H20'])
+        return self.biocrude_perc[self.rxn_time]*self.dewatered_sludge_afdw/\
+            (self.ins[0].F_mass-self.ins[0].imass['H2O'])
       
     @property
     def aqueous_yield(self):
-        return self.aqueous_perc[self.rxn_time]*self.dewatered_sludge_afdw.F_mass/\
-            (self.ins[0].F_mass-self.ins[0].imass['H20'])
+        return self.aqueous_perc[self.rxn_time]*self.dewatered_sludge_afdw/\
+            (self.ins[0].F_mass-self.ins[0].imass['H2O'])
     
     @property
     def hydrochar_yield(self):
-        return self.hydrochar_perc[self.rxn_time]*self.dewatered_sludge_afdw.F_mass/\
-            (self.ins[0].F_mass-self.ins[0].imass['H20'])
+        return self.hydrochar_perc[self.rxn_time]*self.dewatered_sludge_afdw/\
+            (self.ins[0].F_mass-self.ins[0].imass['H2O'])
     
     @property
     def gas_yield(self):
-        return self.gas_perc[self.rxn_time]*self.dewatered_sludge_afdw.F_mass/\
-            (self.ins[0].F_mass-self.ins[0].imass['H20'])
+        return self.gas_perc[self.rxn_time]*self.dewatered_sludge_afdw/\
+            (self.ins[0].F_mass-self.ins[0].imass['H2O'])
     
     @property
     def biocrude_C_ratio(self):
