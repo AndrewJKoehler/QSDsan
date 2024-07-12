@@ -886,7 +886,7 @@ class HydrothermalLiquefactionKinetics(Reactor):
         1111191. https://doi.org/10.2172/1111191.
     '''
 #TODO add temp and time to HTL, add it as a property (adding property allows calling)
-    _N_ins = 3
+    _N_ins = 4
     _N_outs = 4
     _units= {'Treatment capacity': 'lb/h',
               'Solid filter and separator weight': 'lb'}
@@ -901,6 +901,7 @@ class HydrothermalLiquefactionKinetics(Reactor):
                   feedstock = 'sludge',
                   aq_pH = 9.85,
                   NaOH_mol = 1,
+                  HCl_neut = False,
                   rxn_temp = 350,
                   rxn_time = 60,
                   sludge_moisture = 0.8,
@@ -940,6 +941,7 @@ class HydrothermalLiquefactionKinetics(Reactor):
         SanUnit.__init__(self, ID, ins, outs, thermo, init_with)
         self.aq_pH = aq_pH
         self.NaOH_mol = NaOH_mol
+        self.HCl_neut = HCl_neut
         self.feedstock = feedstock
         self.rxn_temp = rxn_temp
         self.rxn_time = rxn_time
@@ -986,7 +988,7 @@ class HydrothermalLiquefactionKinetics(Reactor):
         self.mositure_adjustment_exist_in_the_system = mositure_adjustment_exist_in_the_system
 
     def _run(self):
-        dewatered_sludge, NAOH_in, PFAS_in = self.ins
+        dewatered_sludge, NAOH_in, PFAS_in, HCl = self.ins
         hydrochar, HTLaqueous, biocrude, offgas = self.outs
         
         if self.mositure_adjustment_exist_in_the_system == True:
@@ -1068,6 +1070,11 @@ class HydrothermalLiquefactionKinetics(Reactor):
         #   weight of ash, weight of ash + water, or weight of water?
 
         NAOH_in.imass['NaOH'] = dewatered_sludge.imass['H2O']*self.NaOH_mol*0.04
+        if self.HCl_neut == True:
+            HCl.imass['HCl'] = NAOH_in.imass['NaOH'] * 36.46/39.9997 #molar mass of HCl.NaOH
+        else:
+            HCl.imass['HCl'] = 0
+            
         # dewatered_sludge.imass['H2O'] -= NAOH_in.imass['NaOH']
         # units are kilograms/hour
         
@@ -1077,7 +1084,10 @@ class HydrothermalLiquefactionKinetics(Reactor):
         # the following calculations are based on the kinetics model
         
         ###pH calculations
-        
+        if destruction_potential <= 30:
+            self.aq_pH = 0.1747*destruction_potential+9.85
+        else:
+            self.aq_pH = 14
         
         
         #k values are per second - adjusted to per minute value by dividing by 60 in def kinetics_odes function
