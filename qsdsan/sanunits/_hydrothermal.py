@@ -531,7 +531,7 @@ class HydrothermalLiquefactionMCA(Reactor):
         self.mositure_adjustment_exist_in_the_system = mositure_adjustment_exist_in_the_system
 
     def _run(self):
-        dewatered_sludge, NAOH_in, PFAS_in = self.ins
+        dewatered_sludge, NaOH_in, PFAS_in = self.ins
         hydrochar, HTLaqueous, biocrude, offgas = self.outs
         
         if self.mositure_adjustment_exist_in_the_system == True:
@@ -564,8 +564,8 @@ class HydrothermalLiquefactionMCA(Reactor):
         #question - does dewatered_sludge include the weight of water? YES
         #question - What is dewatered_sludge - dewatered_sludge_afdw = weight of ash, weight of ash + water, or weight of wawter?
 
-        NAOH_in.imass['NaOH'] = dewatered_sludge.imass['H2O']*self.NaOH_mol*0.04
-        # dewatered_sludge.imass['H2O'] -= NAOH_in.imass['NaOH']
+        NaOH_in.imass['NaOH'] = dewatered_sludge.imass['H2O']*self.NaOH_mol*0.04
+        # dewatered_sludge.imass['H2O'] -= NaOH_in.imass['NaOH']
         # units are kilograms/hour
         
         #dewatered_sludge_afdw = sludge dry weight - multiply by 4 to reach mass of water added to system (assuming 80% water, 20% biosolid)
@@ -600,7 +600,7 @@ class HydrothermalLiquefactionMCA(Reactor):
                                   biocrude.F_mass - gas_mass - HTLaqueous.imass['HTLaqueous']
         # assume ash (all soluble based on Jones) goes to water
          
-        HTLaqueous.imass['NaOH'] = NAOH_in.imass['NaOH']
+        HTLaqueous.imass['NaOH'] = NaOH_in.imass['NaOH']
         # AJK set output NaOH mass = to input NaOH mass
         
         hydrochar.phase = 's'
@@ -988,7 +988,7 @@ class HydrothermalLiquefactionKinetics(Reactor):
         self.mositure_adjustment_exist_in_the_system = mositure_adjustment_exist_in_the_system
 
     def _run(self):
-        dewatered_sludge, NAOH_in, PFAS_in, HCl = self.ins
+        dewatered_sludge, NaOH_in, PFAS_in, HCl = self.ins
         hydrochar, HTLaqueous, biocrude, offgas = self.outs
         
         if self.mositure_adjustment_exist_in_the_system == True:
@@ -1069,13 +1069,13 @@ class HydrothermalLiquefactionKinetics(Reactor):
         #question - What is dewatered_sludge - dewatered_sludge_afdw? 
         #   weight of ash, weight of ash + water, or weight of water?
 
-        NAOH_in.imass['NaOH'] = dewatered_sludge.imass['H2O']*self.NaOH_mol*0.04
+        NaOH_in.imass['NaOH'] = dewatered_sludge.imass['H2O']*self.NaOH_mol*0.04
         if self.HCl_neut == True:
-            HCl.imass['HCl'] = NAOH_in.imass['NaOH'] * 36.46/39.9997 #molar mass of HCl.NaOH
+            HCl.imass['HCl'] = NaOH_in.imass['NaOH'] * 36.46/39.9997 #molar mass of HCl.NaOH
         else:
             HCl.imass['HCl'] = 0
             
-        # dewatered_sludge.imass['H2O'] -= NAOH_in.imass['NaOH']
+        # dewatered_sludge.imass['H2O'] -= NaOH_in.imass['NaOH']
         # units are kilograms/hour
         
         #dewatered_sludge_afdw = sludge dry weight - multiply by 4 to reach mass of water added to system (assuming 80% water, 20% biosolid)
@@ -1185,7 +1185,7 @@ class HydrothermalLiquefactionKinetics(Reactor):
                                   biocrude.F_mass - gas_mass - HTLaqueous.imass['HTLaqueous']
         # assume ash (all soluble based on Jones) goes to water
           
-        HTLaqueous.imass['NaOH'] = NAOH_in.imass['NaOH']
+        HTLaqueous.imass['NaOH'] = NaOH_in.imass['NaOH']
         
         hydrochar.phase = 's'
         offgas.phase = 'g'
