@@ -35,9 +35,11 @@ Individual Unit Operations
    combustion
    compressor
    CropApplication
+   distillation
    DynamicInfluent
    ElectrochemicalCell
    Excretion
+   facilities
    Flash
    heat_exchanging
    hydroprocessing
@@ -50,6 +52,7 @@ Individual Unit Operations
    non_reactive
    PolishingFilter
    pumping
+   Reactor
    Screening
    Sedimentation
    SepticTank

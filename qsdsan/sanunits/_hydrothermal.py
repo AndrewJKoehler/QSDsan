@@ -404,7 +404,7 @@ class HydrothermalLiquefactionMCA(Reactor):
         Factor used to adjust the cost of stainless steel.
     mositure_adjustment_exist_in_the_system: bool
         If a moisture adjustment unit exists, set to true.
-               
+
     References
     ----------
     [1] Leow, S.; Witter, J. R.; Vardon, D. R.; Sharma, B. K.;
@@ -631,6 +631,7 @@ class HydrothermalLiquefactionMCA(Reactor):
     @property
     def model_type(self):
         return "MCA"
+
     
     @property
     def biocrude_yield(self):
@@ -684,7 +685,7 @@ class HydrothermalLiquefactionMCA(Reactor):
     def biocrude_HHV(self):
         return 30.74 - 8.52*self.WWTP.AOSc +\
                0.024*self.WWTP.sludge_dw_protein # [2]
-        
+
     @property
     def energy_recovery(self):
         return self.biocrude_HHV*self.outs[2].imass['Biocrude']/\
@@ -717,7 +718,7 @@ class HydrothermalLiquefactionMCA(Reactor):
     @property
     def HTLaqueous_P(self):
         return self.WWTP.sludge_P*(1 - self.hydrochar_P_recovery_ratio)
-
+    
     def _design(self):
         
         Design = self.design_results
