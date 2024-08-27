@@ -435,7 +435,7 @@ class HydrothermalLiquefactionMCA(Reactor):
         April 5, 2013; NREL/SR-5100-60462, 1111191; 2013; p NREL/SR-5100-60462,
         1111191. https://doi.org/10.2172/1111191.
     '''
-    _N_ins = 3
+    _N_ins = 4
     _N_outs = 4
     _units= {'Treatment capacity': 'lb/h',
              'Solid filter and separator weight': 'lb'}
@@ -448,6 +448,8 @@ class HydrothermalLiquefactionMCA(Reactor):
     def __init__(self, ID='', ins=None, outs=(), thermo=None,
                  init_with='Stream',
                  NaOH_mol = 1,
+                 aq_pH = 9.85,
+                 HCl_neut = False,
                  rxn_temp = 350,
                  rxn_time = 60,
                  sludge_moisture = 0.8,
@@ -486,6 +488,7 @@ class HydrothermalLiquefactionMCA(Reactor):
         
         SanUnit.__init__(self, ID, ins, outs, thermo, init_with)
         self.NaOH_mol = NaOH_mol
+        self.HCl_neut = HCl_neut
         self.rxn_temp = rxn_temp
         self.rxn_time = rxn_time
         self.sludge_moisture = sludge_moisture
@@ -531,7 +534,7 @@ class HydrothermalLiquefactionMCA(Reactor):
         self.mositure_adjustment_exist_in_the_system = mositure_adjustment_exist_in_the_system
 
     def _run(self):
-        dewatered_sludge, NaOH_in, PFAS_in = self.ins
+        dewatered_sludge, NaOH_in, PFAS_in, HCl = self.ins
         hydrochar, HTLaqueous, biocrude, offgas = self.outs
         
         if self.mositure_adjustment_exist_in_the_system == True:
@@ -548,23 +551,71 @@ class HydrothermalLiquefactionMCA(Reactor):
         dewatered_sludge_afdw = dewatered_sludge.imass['Sludge_lipid'] +\
                                 dewatered_sludge.imass['Sludge_protein'] +\
                                 dewatered_sludge.imass['Sludge_carbo']
+        self.dewatered_sludge_afdw = dewatered_sludge_afdw
+                
+                
         # just use afdw in revised MCA model, other places use dw
-        PFAS_in.imass['C8HF17O3S']=403*10**-9*dewatered_sludge_afdw
-        PFAS_in.imass['C8HF15O2']=34*10**-9*dewatered_sludge_afdw
-        PFAS_in.imass['C6HF13O3S']=5.9*10**-9*dewatered_sludge_afdw
-        PFAS_in.imass['C6HF11O2']=6.2*10**-9*dewatered_sludge_afdw
-        
-        
+        PFAS_in.imass['C8HF17O3S']=403*10**-9*dewatered_sludge_afdw #PFOS
+        PFAS_in.imass['C8HF15O2']=34*10**-9*dewatered_sludge_afdw #PFOA
+        PFAS_in.imass['C6HF13O3S']=5.9*10**-9*dewatered_sludge_afdw #PFHxS
+        PFAS_in.imass['C6HF11O2']=6.2*10**-9*dewatered_sludge_afdw #PFHxA
 
+
+        #Molarity * volume in L = moles
+        #dewatered_sludge.imass['H2O'] is water mass in kg, converted to L (1kg=1L water)
+        #divide by mass of dewatered_sludge_afdw
+#        breakpoint()
+        destruction_potential = (self.NaOH_mol*dewatered_sludge.imass['H2O'])/(self.dewatered_sludge_afdw+dewatered_sludge.imass['Sludge_ash'])
+        #destruction_potential is mol of NaOH/kg of wastewater solid
         
+        #### impact of time on PFAS destruction
+        if self.rxn_time <25: #no noticable destruction before 25 minutes
+            time_dest_PFHxS = 0
+            time_dest_PFOS = 0
+        elif self.rxn_time >= 25 and self.rxn_time < 35: #between 25 and 35 minutes, destruction does not change
+            time_dest_PFHxS = 0.547
+            time_dest_PFOS = 0.572
+        elif self.rxn_time >= 35 and self.rxn_time < 60: #destruction is linear from 35-60 minutes
+            time_dest_PFHxS = self.rxn_time * 1.647
+            time_dest_PFOS =  self.rxn_time * 1.664
+        elif self.rxn_time >=60:
+            time_dest_PFHxS = 1
+            time_dest_PFOS = 1    
+        
+        #### impact of temperature on PFAS destruction
+        #based on normalizing conditions to one hour
+        temp_dest_PFHxS = self.rxn_temp*0.016-4.694
+        temp_dest_PFOS = self.rxn_temp*0.016-4.187
+        
+        #TODO in experimental data, subtract ash weight from biosolids for all samples, make model based on ash free dry weight, NOT dry weight (current value)
+        
+        PFOS_dest = (4.8351*destruction_potential*time_dest_PFOS*temp_dest_PFOS)/100 #values from experiment, divide by 100 to convert percent to decimals
+        PFOA_dest = 1 #values from experiment - all PFCAs destroyed w/ or w/o alkali
+        PFHxS_dest = (4.6453*destruction_potential*time_dest_PFHxS*temp_dest_PFHxS)/100 #values from experiment, divide by 100 to convert percent to decimals
+        PFHxA_dest = 1 #values from experiment - all PFCAs destroyed w/ or w/o alkali
+        
+        #TODO aks Jianan, what happens to destroyed PFAS?
+         
         self.afdw_lipid_ratio = self.WWTP.sludge_afdw_lipid
         self.afdw_protein_ratio = self.WWTP.sludge_afdw_protein
         self.afdw_carbo_ratio = self.WWTP.sludge_afdw_carbo
         
         #question - does dewatered_sludge include the weight of water? YES
-        #question - What is dewatered_sludge - dewatered_sludge_afdw = weight of ash, weight of ash + water, or weight of wawter?
+        #question - What is dewatered_sludge - dewatered_sludge_afdw? 
+        #   weight of ash, weight of ash + water, or weight of water?
 
         NaOH_in.imass['NaOH'] = dewatered_sludge.imass['H2O']*self.NaOH_mol*0.04
+        if self.HCl_neut == True:
+            HCl.imass['HCl'] = NaOH_in.imass['NaOH'] * 36.46/39.9997 #molar mass of HCl.NaOH
+        else:
+            HCl.imass['HCl'] = 0
+                      
+        ###pH calculations
+        if destruction_potential <= 30:
+            self.aq_pH = 0.1747*destruction_potential+9.85
+        else:
+            self.aq_pH = 14        
+            
         # dewatered_sludge.imass['H2O'] -= NaOH_in.imass['NaOH']
         # units are kilograms/hour
         
@@ -616,6 +667,10 @@ class HydrothermalLiquefactionMCA(Reactor):
         
     # add property pH - follow the format below
     #TODO JIANAN - determine whether yields should be based on AFDW or Dry Weight
+    @property
+    def aqueous_pH(self):
+        return self.aq_pH   
+
     @property
     def reaction_temp(self):
         return self.rxn_temp
@@ -1052,7 +1107,6 @@ class HydrothermalLiquefactionKinetics(Reactor):
         temp_dest_PFHxS = self.rxn_temp*0.016-4.694
         temp_dest_PFOS = self.rxn_temp*0.016-4.187
         
-        #TODO in experimental data, subtract ash weight from biosolids for all samples, make model based on ash free dry weight, NOT dry weight (current value)
         
         PFOS_dest = (4.8351*destruction_potential*time_dest_PFOS*temp_dest_PFOS)/100 #values from experiment, divide by 100 to convert percent to decimals
         PFOA_dest = 1 #values from experiment - all PFCAs destroyed w/ or w/o alkali
