@@ -88,10 +88,11 @@ class Hydrocracking(Reactor):
                  hydrogen_P=1039.7*6894.76,
                  hydrogen_rxned_to_heavy_oil=0.01125,
                  hydrogen_excess=5.556,
-                 hydrocarbon_ratio=1, # 100 wt% of heavy oil and reacted H2
-                 # nearly all input heavy oils and H2 will be converted to
-                 # products [1]
                  # spreadsheet HC calculation
+                 # nearly all input heavy oils and H2 will be converted to products [1]
+                 hydrocarbon_ratio=1, # 100 wt% of heavy oil and reacted H2
+                 # Tin = 394 C (741.2 F) based on Jones PNNL report
+                 # however, the reaction releases heat and increase the temperature of effluent to 451 C (844.6 F)
                  HCin_T=394+273.15,
                  HCrxn_T=451+273.15,
                  HC_composition={'CO2':0.03880, 'CH4':0.00630,
@@ -103,7 +104,7 @@ class Hydrocracking(Reactor):
                                  'C15H32':0.03250, 'C16H34':0.01923,
                                  'C17H36':0.00431, 'C18H38':0.00099,
                                  'C19H40':0.00497, 'C20H42':0.00033},
-                 #combine C20H42 and PHYTANE as C20H42
+                 # combine C20H42 and PHYTANE as C20H42
                  # will not be a variable in uncertainty/sensitivity analysis
                  P=None, tau=5, void_fraciton=0.4, # Towler
                  length_to_diameter=2, diameter=None,
@@ -305,8 +306,10 @@ class Hydrotreating(Reactor):
                  hydrogen_P=1530*6894.76,
                  hydrogen_rxned_to_biocrude=0.046,
                  hydrogen_excess=3,
-                 hydrocarbon_ratio=0.875, # 87.5 wt% of biocrude and reacted H2 [1]
                  # spreadsheet HT calculation
+                 hydrocarbon_ratio=0.875, # 87.5 wt% of biocrude and reacted H2 [1]
+                 # Tin = 174 C (345 F) based on Jones PNNL report
+                 # however, the reaction releases heat and increase the temperature of effluent to 402 C (755.5 F)
                  HTin_T=174+273.15,
                  HTrxn_T=402+273.15, # [1]
                  HT_composition={'CH4':0.02280, 'C2H6':0.02923,
@@ -436,12 +439,12 @@ class Hydrotreating(Reactor):
         
         ht_out.vle(T=ht_out.T, P=ht_out.P)
         
-        if self.HTaqueous_C < -0.1*self.HTL.WWTP.sludge_C:
+        if self.HTaqueous_C < -0.1*self.HTL.WWTP.C:
             raise Exception('carbon mass balance is out of +/- 10% for the whole system')
         # allow +/- 10% out of mass balance
         # should be no C in the aqueous phase, the calculation here is just for MB
 
-        if self.HTaqueous_N < -0.1*self.HTL.WWTP.sludge_N:
+        if self.HTaqueous_N < -0.1*self.HTL.WWTP.N:
             Warning('nitrogen mass balance is out of +/- 10% for the whole system')
         # allow +/- 10% out of mass balance
 
