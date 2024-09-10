@@ -465,8 +465,6 @@ class HydrothermalLiquefaction(Reactor):
                  HTL_model='MCA',
                  feedstock='sludge',
                  NaOH_M=1,
-                 # TODO: ask Andrew, neutralized biocrude or all streams?
-                 # TODO: if there is HCl nautralized for all streams, then, NaOH in the aqueous should be 0
                  HCl_neut=False,
                  rxn_temp=350,
                  rxn_time=60,
@@ -616,9 +614,7 @@ class HydrothermalLiquefaction(Reactor):
         self.PFOA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
         self.PFHxS_dest = (4.6453*destruction_potential*time_dest_PFHxS*temp_dest_PFHxS)/100 # values from experiment, divide by 100 to convert percent to decimals
         self.PFHxA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
-        
-        # TODO aks Jianan, what happens to destroyed PFAS?
-        # assume destroyed PFAS go to the HTLaqueous stream as 'H2O'
+
          
         self.afdw_lipid_ratio = self.WWTP.afdw_lipid
         self.afdw_protein_ratio = self.WWTP.afdw_protein
@@ -631,10 +627,6 @@ class HydrothermalLiquefaction(Reactor):
         else:
             HCl_in.imass['HCl'] = 0
         
-        # TODO: H2SO4 for acid extraction is far more than the NaOH here
-        # TODO: confirm the pH calculation with Andrew
-        # TODO: it is also possible to use NaOH concentration for the pH calculation, though this way could lead to NaOH amount higher than H2SO4 amount from acid extraction,
-        # NaOH could be consumed during the HTL reaction, which the current model cannot predict
         # pH calculations
         if destruction_potential <= 30:
             self.aq_pH = 0.1747*destruction_potential+9.85
@@ -642,7 +634,7 @@ class HydrothermalLiquefaction(Reactor):
             self.aq_pH = 14
         
         if self.HTL_model == 'kinetics':
-            # TODO: should here be multiplying by 60?
+            # TODO: Andrew/Jeremy to decide: should here be multiplying by 60?
             # k values are per second - adjusted to per minute value by dividing by 60 in def kinetics_odes function
             sludge_kinetics = {250: [58.73, 6, 58.8, 43.55, 30, 33.3, 24, 42.51, 0.18, 0.3, 3.11, 1.18, 0.3, 0.18, 1.8, 0.18, 4.8],
                                300: [59.89, 7.67, 59.4, 53.99, 37.45, 42, 26,54, 0.24, 0.6, 7.24, 2.96, 2.56, 0.24, 21.7, 0.24, 59.4],
@@ -661,7 +653,7 @@ class HydrothermalLiquefaction(Reactor):
                 kinetics_df = biosolid_df
                 
             def kinetics_odes(x, t):
-                # TODO: should here be multiplying by 60?
+                # TODO: Andrew/Jeremy to decide: should here be multiplying by 60?
                 k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13, k14, k15, k16, k17 = kinetics_df[self.rxn_temp]/60 # 60 converts from seconds to minutes
                 
                 # assign each ODE to a vector element
@@ -705,12 +697,11 @@ class HydrothermalLiquefaction(Reactor):
             
             hydrochar.imass['Hydrochar'] = self.hydrochar_perc[self.rxn_time]*self.dewatered_sludge_afdw
             
-            # TODO: are these for undestoryed, if yes, there should be (1-PFOS_dest) and (1-PFHxS_dest)
             # 2% of PFOS and 2% of PFHxS go to hydrochar post HTL, Yu et al. 2020
-            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*self.PFOS_dest*0.02
-            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*self.PFHxS_dest*0.02
+            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.02
+            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.02
             
-            # TODO: confirm with Andew that the HTLaqueous here includes just the TDS in the aqueous phase 
+            # HTLaqueous is just the TDS in the aqueous phase
             HTLaqueous.imass['HTLaqueous'] = self.aqueous_perc[self.rxn_time]*self.dewatered_sludge_afdw
             
             gas_mass = self.gas_perc[self.rxn_time]*self.dewatered_sludge_afdw
@@ -723,21 +714,18 @@ class HydrothermalLiquefaction(Reactor):
                                     self.biocrude_moisture_content) -\
                                     biocrude.imass['Biocrude']
             
-            # TODO: are these for undestoryed, if yes, there should be (1-PFOS_dest) and (1-PFHxS_dest)
             # 98% of PFOS and 98% PFHxS go to biocrude post HTL, Yu et al. 2020
-            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*self.PFOS_dest*0.98
-            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*self.PFHxS_dest*0.98
+            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.98
+            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.98
         
         else:
             # the following calculations are based on revised MCA model
             # 0.377, 0.481, and 0.154 don't have uncertainties because they are calculated values
             hydrochar.imass['Hydrochar'] = 0.377*self.afdw_carbo_ratio*dewatered_sludge_afdw
             
-            # TODO: does this apply to the MCA model as well?
-            # TODO: are these for undestoryed, if yes, there should be (1-PFOS_dest) and (1-PFHxS_dest)
             # 2% of PFOS and 2% of PFHxS go to hydrochar post HTL, Yu et al. 2020
-            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*self.PFOS_dest*0.02
-            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*self.PFHxS_dest*0.02
+            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.02
+            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.02
             
             # HTLaqueous is just the TDS in the aqueous phase
             HTLaqueous.imass['HTLaqueous'] = (0.481*self.afdw_protein_ratio +\
@@ -757,11 +745,9 @@ class HydrothermalLiquefaction(Reactor):
                                     self.biocrude_moisture_content) -\
                                     biocrude.imass['Biocrude']
             
-            # TODO: does this apply to the MCA model as well?
-            # TODO: are these for undestoryed, if yes, there should be (1-PFOS_dest) and (1-PFHxS_dest)
             # 98% of PFOS and 98% PFHxS go to biocrude post HTL, Yu et al. 2020
-            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*self.PFOS_dest*0.98
-            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*self.PFHxS_dest*0.98
+            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.98
+            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.98
             
         # assume ash (all soluble based on Jones) and all other chemicals go to water
         HTLaqueous.imass['H2O'] = dewatered_sludge.F_mass + NaOH_in.F_mass + PFAS_in.F_mass +\
@@ -799,7 +785,7 @@ class HydrothermalLiquefaction(Reactor):
     def model_type(self):
         return self.HTL_model
     
-    # TODO: confirm with Andrew, yields (for biocrude, aqueous, hydrochar, and gas) are based on afdw instead of dw
+    # yields (for biocrude, aqueous, hydrochar, and gas) are based on afdw
     @property
     def biocrude_yield(self):
         if self.HTL_model == 'MCA':
@@ -830,7 +816,6 @@ class HydrothermalLiquefaction(Reactor):
         else:
             return self.gas_perc[self.rxn_time]
     
-    # TODO: do these ratios obtained using the MCA model also apply for the kinetics model?
     @property
     def biocrude_C_ratio(self):
         return (self.WWTP.AOSc*self.biocrude_C_slope + self.biocrude_C_intercept)/100 # [2]
