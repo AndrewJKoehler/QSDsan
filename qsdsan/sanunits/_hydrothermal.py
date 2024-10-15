@@ -362,6 +362,8 @@ class HydrothermalLiquefaction(Reactor):
         Can only be 'MCA' or 'kinetics'.
     feedstock: str
         Can only be 'sludge' or 'biosolid'.
+    rxn_moisture: float
+        The moisture content of the HTL reactor, ranging from 0 to 1.
     NaOH_M: int or float
         The concentration of NaOH, [M].
     HCl_neut: bool
@@ -464,6 +466,7 @@ class HydrothermalLiquefaction(Reactor):
                  init_with='Stream',
                  HTL_model='MCA',
                  feedstock='sludge',
+                 rxn_moisture=0.8,
                  NaOH_M=1,
                  HCl_neut=False,
                  rxn_temp=350,
@@ -510,6 +513,7 @@ class HydrothermalLiquefaction(Reactor):
         self.NaOH_M = NaOH_M
         self.HCl_neut = HCl_neut
         self.feedstock = feedstock
+        self.rxn_moisture = rxn_moisture
         self.rxn_temp = rxn_temp
         self.rxn_time = rxn_time
         self.lipid_2_biocrude = lipid_2_biocrude
