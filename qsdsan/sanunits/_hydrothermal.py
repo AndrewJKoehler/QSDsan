@@ -681,7 +681,8 @@ class HydrothermalLiquefaction(Reactor):
                 dx8dt= -k17*x8+k15*x6+k16*x7
                 
                 return [dx1dt, dx2dt, dx3dt, dx4dt, dx5dt, dx6dt, dx7dt, dx8dt]
-            
+#TODO: evaluate x0 values, should be initialized with AFDW of lipid, carbohydrate, protein, lignin
+
             # initial conditions
             # lipid_init%, carbo_init%, protein_init%, lignin_init%
             x0 = [0.25, 0.25, 0.25, 0.25, 0, 0, 0, 0]
