@@ -618,8 +618,7 @@ class HydrothermalLiquefaction(Reactor):
         self.PFOA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
         self.PFHxS_dest = (4.6453*destruction_potential*time_dest_PFHxS*temp_dest_PFHxS)/100 # values from experiment, divide by 100 to convert percent to decimals
         self.PFHxA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
-
-         
+        
         self.afdw_lipid_ratio = self.WWTP.afdw_lipid
         self.afdw_protein_ratio = self.WWTP.afdw_protein
         self.afdw_carbo_ratio = self.WWTP.afdw_carbo
@@ -681,11 +680,14 @@ class HydrothermalLiquefaction(Reactor):
                 dx8dt= -k17*x8+k15*x6+k16*x7
                 
                 return [dx1dt, dx2dt, dx3dt, dx4dt, dx5dt, dx6dt, dx7dt, dx8dt]
-#TODO: evaluate x0 values, should be initialized with AFDW of lipid, carbohydrate, protein, lignin
+            
+            # TODO: evaluate x0 values, should be initialized with AFDW of lipid, carbohydrate, protein, lignin
+            # after changing the biomass compositions from constants to variables, the yield now has (very small) uncertainty 
+            # it seems the kinetics_odes is not sensitive to the initial x value in the current code
 
             # initial conditions
             # lipid_init%, carbo_init%, protein_init%, lignin_init%
-            x0 = [0.25, 0.25, 0.25, 0.25, 0, 0, 0, 0]
+            x0 = [self.afdw_lipid_ratio, self.afdw_carbo_ratio, self.afdw_protein_ratio, self.afdw_lignin_ratio, 0, 0, 0, 0]
             
             # declare a time vector (time window)
             t = np.linspace(0, 60, 61)
