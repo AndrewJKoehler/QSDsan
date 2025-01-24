@@ -25,6 +25,7 @@ from . import Reactor, HXutility, Pump
 from scipy.integrate import odeint
 import numpy as np
 import pandas as pd
+import math
 
 __all__ = (
     'CatalyticHydrothermalGasification',
@@ -559,8 +560,8 @@ class HydrothermalLiquefaction(Reactor):
 
     def _run(self):
         
-        if self.HTL_model not in ['MCA','kinetics']:
-            raise ValueError("invalid feedstock, select from 'MCA' and 'kinetics'")
+        if self.HTL_model not in ['MCA','kinetics','MCA_adj']:
+            raise ValueError("invalid feedstock, select from 'MCA', 'kinetics', or 'MCA_adj'")
         
         if self.feedstock not in ['sludge','biosolid']:
             raise ValueError("invalid feedstock, select from 'sludge' and 'biosolid'")
@@ -593,33 +594,55 @@ class HydrothermalLiquefaction(Reactor):
         destruction_potential = (self.NaOH_M*dewatered_sludge.ivol['H2O']*1000)/(self.dewatered_sludge_afdw+dewatered_sludge.imass['Sludge_ash'])
         # destruction_potential is mol of NaOH/kg of wastewater solid
         
-        # impact of time on PFAS destruction
-        if self.rxn_time < 25: # no noticable destruction before 25 minutes
-            time_dest_PFHxS = 0
-            time_dest_PFOS = 0
-        elif self.rxn_time >= 25 and self.rxn_time < 35: # between 25 and 35 minutes, destruction does not change
-            time_dest_PFHxS = 0.547
-            time_dest_PFOS = 0.572
-        elif self.rxn_time >= 35 and self.rxn_time < 60: # destruction is linear from 35-60 minutes
-            time_dest_PFHxS = self.rxn_time * 1.647
-            time_dest_PFOS =  self.rxn_time * 1.664
-        elif self.rxn_time >= 60:
-            time_dest_PFHxS = 1
-            time_dest_PFOS = 1    
         
-        # impact of temperature on PFAS destruction
-        # based on normalizing conditions to one hour
-        temp_dest_PFHxS = self.rxn_temp*0.016-4.694
-        temp_dest_PFOS = self.rxn_temp*0.016-4.187
+        ### PFAS destruction approach one: PFAS destruction found at 350C for 1 hr, scaling factors applied for time and temperature       
+        # # impact of time on PFAS destruction
+        # if self.rxn_time < 25: # no noticable destruction before 25 minutes
+        #     time_dest_PFHxS = 0
+        #     time_dest_PFOS = 0
+        # elif self.rxn_time >= 25 and self.rxn_time < 35: # between 25 and 35 minutes, destruction does not change
+        #     time_dest_PFHxS = 0.547
+        #     time_dest_PFOS = 0.572
+        # elif self.rxn_time >= 35 and self.rxn_time < 60: # destruction is linear from 35-60 minutes
+        #     time_dest_PFHxS = self.rxn_time * 1.647
+        #     time_dest_PFOS =  self.rxn_time * 1.664
+        # elif self.rxn_time >= 60:
+        #     time_dest_PFHxS = 1
+        #     time_dest_PFOS = 1    
         
-        # TODO: in experimental data, subtract ash weight from biosolids for all samples, make model based on ash free dry weight, NOT dry weight (current value)
+        # # impact of temperature on PFAS destruction
+        # # based on normalizing conditions to one hour
+        # temp_dest_PFHxS = self.rxn_temp*0.016-4.694
+        # temp_dest_PFOS = self.rxn_temp*0.016-4.187
         
-        self.PFOS_dest = (4.8351*destruction_potential*time_dest_PFOS*temp_dest_PFOS)/100 # values from experiment, divide by 100 to convert percent to decimals
+        # # TODO: in experimental data, subtract ash weight from biosolids for all samples, make model based on ash free dry weight, NOT dry weight (current value)
+        
+        # self.PFOS_dest = (4.8351*destruction_potential*time_dest_PFOS*temp_dest_PFOS)/100 # values from experiment, divide by 100 to convert percent to decimals
+        # self.PFOA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
+        # self.PFHxS_dest = (4.6453*destruction_potential*time_dest_PFHxS*temp_dest_PFHxS)/100 # values from experiment, divide by 100 to convert percent to decimals
+        # self.PFHxA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
+
+        ###PFAS destruction approach two: PFAS destruction based on empirical relationship (modeled after 2nd order kinetic experiment)   
+        #defines 'k' values from emperical data for PFOS and PFHxS; based on second order reaction, with WWRS concentration included
+        #From Koehler et al, 2025
+        k_emp350PFOS = 2.07*10**(-3) #kg WWRS/(mol NaOH*min)
+        k_emp350PFHxS = 2.13*10**(-3) #kg WWRS/(mol NaOH*min)
+        
+        #defines activation energies divided by R
+        #From Koehler et al, 2025
+        Ea_sub_R_PFOS = 17118 #K
+        Ea_sub_R_PFHxS = 15797 #K
+
+        #Provides tmeperature adjusted k values from experimental conditions (310-365C)
+        #derived from linear Arrhenius equation
+        k_emp_rxntemp_PFOS = math.exp(-Ea_sub_R_PFOS*(1/(self.rxn_temp+273.15)-1/(350+273.15))+math.log(k_emp350PFOS))
+        k_emp_rxntemp_PFHxS = math.exp(-Ea_sub_R_PFHxS*(1/(self.rxn_temp+273.15)-1/(350+273.15))+math.log(k_emp350PFHxS))
+
+        self.PFOS_dest = math.exp(-k_emp_rxntemp_PFOS*destruction_potential*self.rxn_time)      
         self.PFOA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
-        self.PFHxS_dest = (4.6453*destruction_potential*time_dest_PFHxS*temp_dest_PFHxS)/100 # values from experiment, divide by 100 to convert percent to decimals
+        self.PFHxS_dest = math.exp(-k_emp_rxntemp_PFHxS*destruction_potential*self.rxn_time)
         self.PFHxA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
 
-         
         self.afdw_lipid_ratio = self.WWTP.afdw_lipid
         self.afdw_protein_ratio = self.WWTP.afdw_protein
         self.afdw_carbo_ratio = self.WWTP.afdw_carbo
@@ -638,6 +661,22 @@ class HydrothermalLiquefaction(Reactor):
             self.aq_pH = 14
         
         if self.HTL_model == 'kinetics':
+            #allow reaction time to run past 1 hr
+            #assumes rxn products are unchanged after 1 hr
+            if self.rxn_time > 60:
+                kin_time = 60
+            else:
+                kin_time = self.rxn_time
+            
+            #allow reactions to run at temperatures other than 250, 300, 350
+            #assumes 250-275 are equal, 275-325 are the same, 325-365 are the same
+            if 250 <= self.rxn_temp <275:
+                kin_temp = 250
+            elif 275 <= self.rxn_temp <325:
+                kin_temp = 300
+            elif 325 <= self.rxn_temp <375:
+                kin_temp = 350
+            
             # TODO: Andrew/Jeremy to decide: should here be multiplying by 60?
             # k values are per second - adjusted to per minute value by dividing by 60 in def kinetics_odes function
             sludge_kinetics = {250: [58.73, 6, 58.8, 43.55, 30, 33.3, 24, 42.51, 0.18, 0.3, 3.11, 1.18, 0.3, 0.18, 1.8, 0.18, 4.8],
@@ -658,7 +697,7 @@ class HydrothermalLiquefaction(Reactor):
                 
             def kinetics_odes(x, t):
                 # TODO: Andrew/Jeremy to decide: should here be multiplying by 60?
-                k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13, k14, k15, k16, k17 = kinetics_df[self.rxn_temp]/60 # 60 converts from seconds to minutes
+                k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13, k14, k15, k16, k17 = kinetics_df[kin_temp]/60 # 60 converts from seconds to minutes
                 
                 # assign each ODE to a vector element
                 x1 = x[0]
@@ -685,7 +724,7 @@ class HydrothermalLiquefaction(Reactor):
 
             # initial conditions
             # lipid_init%, carbo_init%, protein_init%, lignin_init%
-            x0 = [0.25, 0.25, 0.25, 0.25, 0, 0, 0, 0]
+            x0 = [self.afdw_lipid_ratio, self.afdw_carbo_ratio, self.afdw_protein_ratio, self.afdw_lignin_ratio, 0, 0, 0, 0]
             
             # declare a time vector (time window)
             t = np.linspace(0, 60, 61)
@@ -700,20 +739,20 @@ class HydrothermalLiquefaction(Reactor):
             self.biocrude_perc = x[:, 6] # crude
             self.gas_perc = x[:, 7] # gas       
             
-            hydrochar.imass['Hydrochar'] = self.hydrochar_perc[self.rxn_time]*self.dewatered_sludge_afdw
+            hydrochar.imass['Hydrochar'] = self.hydrochar_perc[kin_time]*self.dewatered_sludge_afdw
             
             # 2% of PFOS and 2% of PFHxS go to hydrochar post HTL, Yu et al. 2020
             hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.02
             hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.02
             
             # HTLaqueous is just the TDS in the aqueous phase
-            HTLaqueous.imass['HTLaqueous'] = self.aqueous_perc[self.rxn_time]*self.dewatered_sludge_afdw
+            HTLaqueous.imass['HTLaqueous'] = self.aqueous_perc[kin_time]*self.dewatered_sludge_afdw
             
-            gas_mass = self.gas_perc[self.rxn_time]*self.dewatered_sludge_afdw
+            gas_mass = self.gas_perc[kin_time]*self.dewatered_sludge_afdw
             for name, ratio in self.gas_composition.items():
                 offgas.imass[name] = gas_mass*ratio
             
-            biocrude.imass['Biocrude'] = self.biocrude_perc[self.rxn_time]*self.dewatered_sludge_afdw     
+            biocrude.imass['Biocrude'] = self.biocrude_perc[kin_time]*self.dewatered_sludge_afdw     
            
             biocrude.imass['H2O'] = biocrude.imass['Biocrude']/(1 -\
                                     self.biocrude_moisture_content) -\
@@ -723,7 +762,7 @@ class HydrothermalLiquefaction(Reactor):
             biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.98
             biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.98
         
-        else:
+        elif self.HTL_model == 'MCA':
             # the following calculations are based on revised MCA model
             # 0.377, 0.481, and 0.154 don't have uncertainties because they are calculated values
             hydrochar.imass['Hydrochar'] = 0.377*self.afdw_carbo_ratio*dewatered_sludge_afdw
@@ -753,7 +792,131 @@ class HydrothermalLiquefaction(Reactor):
             # 98% of PFOS and 98% PFHxS go to biocrude post HTL, Yu et al. 2020
             biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.98
             biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.98
+ 
             
+        elif self.HTL_model == 'MCA_adj':
+            def kinetics_adjustment(temperature = self.rxn_temp, time = self.rxn_time, afdw_lipid = self.afdw_lipid_ratio, afdw_carbo = self.afdw_carbo_ratio, afdw_protein = self.afdw_protein_ratio, afdw_lignin = self.afdw_lignin_ratio):
+                
+                #allow reaction time to run past 1 hr
+                #assumes rxn products are unchanged after 1 hr
+                if time > 60:
+                    time = 60
+                
+                #allow reactions to run at temperatures other than 250, 300, 350
+                #assumes 250-275 are equal, 275-325 are the same, 325-365 are the same
+                if 250 <= temperature <275:
+                    temperature = 250
+                elif 275 <= temperature <325:
+                    temperature = 300
+                elif 325 <= temperature <375:
+                    temperature = 350
+                                       
+                sludge_kinetics = {250: [58.73, 6, 58.8, 43.55, 30, 33.3, 24, 42.51, 0.18, 0.3, 3.11, 1.18, 0.3, 0.18, 1.8, 0.18, 4.8],
+                                   300: [59.89, 7.67, 59.4, 53.99, 37.45, 42, 26,54, 0.24, 0.6, 7.24, 2.96, 2.56, 0.24, 21.7, 0.24, 59.4],
+                                   350: [60, 21, 60, 60, 60, 45, 60, 57, 0.3, 0.96, 16.55, 3, 3.98, 0.3, 30, 0.3, 60]}
+                
+                biosolid_kinetics = {250: [1.99, 6, 8.03, 0.3, 30, 11.02, 8.03, 0.3, 0.3, 0.3, 0.32, 0.3, 0.3, 0.3, 1.8, 0.3, 2.99],
+                                     300: [2.1, 60, 58.9, 0.3, 60, 11.4, 58.9, 0.3, 4, 0.3, 0.33, 0.3, 6.99, 11.65, 1.86, 4.59, 6.14],
+                                     350: [60, 60, 59.4, 60, 60, 60, 59.4, 60, 21.99, 2.81, 15.7, 2.81, 27.56, 38.06, 12.28, 27.39, 36.42]}
+                
+                sludge_df = pd.DataFrame(sludge_kinetics)
+                biosolid_df = pd.DataFrame(biosolid_kinetics)
+          
+                if self.feedstock == 'sludge':
+                    kinetics_df = sludge_df
+                elif self.feedstock == 'biosolid':
+                    kinetics_df = biosolid_df
+                    
+                def kinetics_odes(x, t):
+                    # TODO: Andrew/Jeremy to decide: should here be multiplying by 60?
+                    k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13, k14, k15, k16, k17 = kinetics_df[temperature]/60 # 60 converts from seconds to minutes
+                    
+                    # assign each ODE to a vector element
+                    x1 = x[0]
+                    x2 = x[1]
+                    x3 = x[2]
+                    x4 = x[3]
+                    x5 = x[4]
+                    x6 = x[5]
+                    x7 = x[6]
+                    x8 = x[7]
+                    
+                    # define each ODE
+                    dx1dt= -(k1+k2)*x1
+                    dx2dt= -(k3+k4)*x2
+                    dx3dt= -(k5+k6)*x3
+                    dx4dt= -(k7+k8)*x4
+                    dx5dt= -(k10+k13)*x5+k3*x2+k5*x3+k7*x4+k9*x6+k14*x7
+                    dx6dt= -(k9+k12+k15)*x6+k1*x1+k4*x2+k6*x3+k8*x4+k10*x5+k11*x7+k17*x8
+                    dx7dt= -(k11+k14+k16)*x7+k2*x1+k12*x6+k13*x5
+                    dx8dt= -k17*x8+k15*x6+k16*x7
+                    
+                    return [dx1dt, dx2dt, dx3dt, dx4dt, dx5dt, dx6dt, dx7dt, dx8dt]
+    #TODO: evaluate x0 values, should be initialized with AFDW of lipid, carbohydrate, protein, lignin
+    
+                # initial conditions
+                # lipid_init%, carbo_init%, protein_init%, lignin_init%
+                x0 = [afdw_lipid, afdw_carbo, afdw_protein, afdw_lignin, 0, 0, 0, 0]
+                
+                # declare a time vector (time window)
+                t = np.linspace(0, 60, 61)
+                x = odeint(kinetics_odes, x0, t)  
+                
+                perc_lipid = x[:, 0] # lipid
+                perc_carbo = x[:, 1] # carbohydrate
+                perc_protein = x[:, 2] # protein
+                perc_lignin = x[:, 3] # lignin
+                perc_hydrochar = x[:, 4] # hydrochar
+                perc_aqueous = x[:, 5] # aqueous
+                perc_biocrude = x[:, 6] # crude
+                perc_gas = x[:, 7] # gas       
+                
+                hydrochar_adj = perc_hydrochar[time]*self.dewatered_sludge_afdw
+                aqueous_adj = perc_aqueous[time]*self.dewatered_sludge_afdw                
+                gas_adj = perc_gas[time]*self.dewatered_sludge_afdw                
+                biocrude_adj = perc_biocrude[time]*self.dewatered_sludge_afdw  
+                
+                kinetic_output = [hydrochar_adj, aqueous_adj, gas_adj, biocrude_adj]
+                return kinetic_output
+            #allows adjustment of MCA model by finding kinetic output at MCA conditions (300C and 1 hr), then making weighted calculations
+
+            kinetic_baseline = kinetics_adjustment(temperature = 300, time = 60, afdw_lipid = self.afdw_lipid_ratio, afdw_carbo = self.afdw_carbo_ratio, afdw_protein = self.afdw_protein_ratio, afdw_lignin = self.afdw_lignin_ratio)
+            kinetic_conditions = kinetics_adjustment(temperature = self.rxn_temp, time = self.rxn_time, afdw_lipid = self.afdw_lipid_ratio, afdw_carbo = self.afdw_carbo_ratio, afdw_protein = self.afdw_protein_ratio, afdw_lignin = self.afdw_lignin_ratio)
+            kinetic_weight = np.array(kinetic_conditions) / np.array(kinetic_baseline)
+
+            #next, apply to MCA model
+            # the following calculations are based on revised MCA model
+            # 0.377, 0.481, and 0.154 don't have uncertainties because they are calculated values
+            hydrochar.imass['Hydrochar'] = 0.377*self.afdw_carbo_ratio*dewatered_sludge_afdw*kinetic_weight[0]
+            
+            # 2% of PFOS and 2% of PFHxS go to hydrochar post HTL, Yu et al. 2020
+            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.02
+            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.02
+            
+            # HTLaqueous is just the TDS in the aqueous phase
+            HTLaqueous.imass['HTLaqueous'] = (0.481*self.afdw_protein_ratio +\
+                                              0.154*self.afdw_lipid_ratio)*\
+                                              dewatered_sludge_afdw*kinetic_weight[1]
+             
+            gas_mass = (self.protein_2_gas*self.afdw_protein_ratio + self.carbo_2_gas*self.afdw_carbo_ratio)*\
+                           dewatered_sludge_afdw*kinetic_weight[2]    
+            for name, ratio in self.gas_composition.items():
+                offgas.imass[name] = gas_mass*ratio
+                
+            biocrude.imass['Biocrude'] = (self.protein_2_biocrude*self.afdw_protein_ratio +\
+                                          self.lipid_2_biocrude*self.afdw_lipid_ratio +\
+                                          self.carbo_2_biocrude*self.afdw_carbo_ratio)*\
+                                          dewatered_sludge_afdw*kinetic_weight[3]  
+            biocrude.imass['H2O'] = biocrude.imass['Biocrude']/(1 -\
+                                    self.biocrude_moisture_content) -\
+                                    biocrude.imass['Biocrude']
+            
+            # 98% of PFOS and 98% PFHxS go to biocrude post HTL, Yu et al. 2020
+            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.98
+            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.98
+               
+ ##########           
+          
         # assume ash (all soluble based on Jones) and all other chemicals go to water
         HTLaqueous.imass['H2O'] = dewatered_sludge.F_mass + NaOH_in.F_mass + PFAS_in.F_mass +\
                                   HCl_in.F_mass - hydrochar.F_mass - biocrude.F_mass -\
@@ -793,7 +956,7 @@ class HydrothermalLiquefaction(Reactor):
     # yields (for biocrude, aqueous, hydrochar, and gas) are based on afdw
     @property
     def biocrude_yield(self):
-        if self.HTL_model == 'MCA':
+        if self.HTL_model == 'MCA' or 'MCA_adj':
             return self.protein_2_biocrude*self.afdw_protein_ratio +\
                    self.lipid_2_biocrude*self.afdw_lipid_ratio +\
                    self.carbo_2_biocrude*self.afdw_carbo_ratio
@@ -802,21 +965,21 @@ class HydrothermalLiquefaction(Reactor):
     
     @property
     def aqueous_yield(self):
-        if self.HTL_model == 'MCA':
+        if self.HTL_model == 'MCA' or 'MCA_adj':
             return 0.481*self.afdw_protein_ratio + 0.154*self.afdw_lipid_ratio
         else:
             return self.aqueous_perc[self.rxn_time]
     
     @property
     def hydrochar_yield(self):
-        if self.HTL_model == 'MCA':
+        if self.HTL_model == 'MCA' or 'MCA_adj':
             return 0.377*self.afdw_carbo_ratio
         else:
             return self.hydrochar_perc[self.rxn_time]
     
     @property
     def gas_yield(self):
-        if self.HTL_model == 'MCA':
+        if self.HTL_model == 'MCA' or 'MCA_adj':
             return self.protein_2_gas*self.afdw_protein_ratio + self.carbo_2_gas*self.afdw_carbo_ratio
         else:
             return self.gas_perc[self.rxn_time]
