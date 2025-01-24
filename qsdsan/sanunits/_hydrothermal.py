@@ -642,7 +642,11 @@ class HydrothermalLiquefaction(Reactor):
         self.PFOA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
         self.PFHxS_dest = math.exp(-k_emp_rxntemp_PFHxS*destruction_potential*self.rxn_time)
         self.PFHxA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
+# <<<<<<< HEAD
 
+# =======
+        
+# >>>>>>> 8ab488799032b6d53ef106f7f997292d5900d5df
         self.afdw_lipid_ratio = self.WWTP.afdw_lipid
         self.afdw_protein_ratio = self.WWTP.afdw_protein
         self.afdw_carbo_ratio = self.WWTP.afdw_carbo
@@ -720,7 +724,10 @@ class HydrothermalLiquefaction(Reactor):
                 dx8dt= -k17*x8+k15*x6+k16*x7
                 
                 return [dx1dt, dx2dt, dx3dt, dx4dt, dx5dt, dx6dt, dx7dt, dx8dt]
-#TODO: evaluate x0 values, should be initialized with AFDW of lipid, carbohydrate, protein, lignin
+            
+            # TODO: evaluate x0 values, should be initialized with AFDW of lipid, carbohydrate, protein, lignin
+            # after changing the biomass compositions from constants to variables, the yield now has (very small) uncertainty 
+            # it seems the kinetics_odes is not sensitive to the initial x value in the current code
 
             # initial conditions
             # lipid_init%, carbo_init%, protein_init%, lignin_init%
