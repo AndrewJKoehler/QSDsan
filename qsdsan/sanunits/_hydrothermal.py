@@ -360,7 +360,7 @@ class HydrothermalLiquefaction(Reactor):
     outs : Iterable(stream)
         hydrochar, HTLaqueous, biocrude, offgas.
     HTL_model: str
-        Can only be 'MCA' or 'kinetics'.
+        Can only be 'MCA' or 'kinetics' or 'MCA_adj'.
     feedstock: str
         Can only be 'sludge' or 'biosolid'.
     rxn_moisture: float
