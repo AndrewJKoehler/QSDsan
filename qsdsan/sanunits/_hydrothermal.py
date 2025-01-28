@@ -890,7 +890,7 @@ class HydrothermalLiquefaction(Reactor):
             kinetic_baseline = kinetics_adjustment(temperature = 300, time = 60, afdw_lipid = self.afdw_lipid_ratio, afdw_carbo = self.afdw_carbo_ratio, afdw_protein = self.afdw_protein_ratio, afdw_lignin = self.afdw_lignin_ratio)
             kinetic_conditions = kinetics_adjustment(temperature = self.rxn_temp, time = self.rxn_time, afdw_lipid = self.afdw_lipid_ratio, afdw_carbo = self.afdw_carbo_ratio, afdw_protein = self.afdw_protein_ratio, afdw_lignin = self.afdw_lignin_ratio)
             kinetic_weight = np.array(kinetic_conditions) / np.array(kinetic_baseline)
-
+            breakpoint()
             #next, apply to MCA model
             # the following calculations are based on revised MCA model
             # 0.377, 0.481, and 0.154 don't have uncertainties because they are calculated values
@@ -963,33 +963,43 @@ class HydrothermalLiquefaction(Reactor):
     # yields (for biocrude, aqueous, hydrochar, and gas) are based on afdw
     @property
     def biocrude_yield(self):
-        if self.HTL_model == 'MCA' or 'MCA_adj':
+        if self.HTL_model == 'MCA':
             return self.protein_2_biocrude*self.afdw_protein_ratio +\
                    self.lipid_2_biocrude*self.afdw_lipid_ratio +\
                    self.carbo_2_biocrude*self.afdw_carbo_ratio
-        else:
+        elif self.HTL_model == 'kinetics':
             return self.biocrude_perc[self.rxn_time]
-    
+        elif self.HTL_model == 'MCA_adj':
+            return (self.protein_2_biocrude*self.afdw_protein_ratio +\
+                   self.lipid_2_biocrude*self.afdw_lipid_ratio +\
+                   self.carbo_2_biocrude*self.afdw_carbo_ratio)*kinetic_weight[3] 
+                                     
     @property
     def aqueous_yield(self):
-        if self.HTL_model == 'MCA' or 'MCA_adj':
+        if self.HTL_model == 'MCA':
             return 0.481*self.afdw_protein_ratio + 0.154*self.afdw_lipid_ratio
-        else:
+        elif self.HTL_model == 'kinetics':
             return self.aqueous_perc[self.rxn_time]
+        elif self.HTL_model == 'MCA_adj':
+            return (0.481*self.afdw_protein_ratio + 0.154*self.afdw_lipid_ratio)*kinetic_weight[1]
     
     @property
     def hydrochar_yield(self):
-        if self.HTL_model == 'MCA' or 'MCA_adj':
+        if self.HTL_model == 'MCA':
             return 0.377*self.afdw_carbo_ratio
-        else:
+        elif self.HTL_model == 'kinetics':
             return self.hydrochar_perc[self.rxn_time]
-    
+        elif self.HTL_model == 'MCA_adj':
+            return (0.377*self.afdw_carbo_ratio)*kinetic_weight[0]
+        
     @property
     def gas_yield(self):
-        if self.HTL_model == 'MCA' or 'MCA_adj':
+        if self.HTL_model == 'MCA':
             return self.protein_2_gas*self.afdw_protein_ratio + self.carbo_2_gas*self.afdw_carbo_ratio
-        else:
+        elif self.HTL_model == 'kinetics':
             return self.gas_perc[self.rxn_time]
+        elif self.HTL_model == 'MCA_adj':
+            return (self.protein_2_gas*self.afdw_protein_ratio + self.carbo_2_gas*self.afdw_carbo_ratio)*kinetic_weight[2]
     
     @property
     def biocrude_C_ratio(self):
