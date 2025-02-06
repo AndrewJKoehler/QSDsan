@@ -890,7 +890,7 @@ class HydrothermalLiquefaction(Reactor):
             kinetic_baseline = kinetics_adjustment(temperature = 300, time = 60, afdw_lipid = self.afdw_lipid_ratio, afdw_carbo = self.afdw_carbo_ratio, afdw_protein = self.afdw_protein_ratio, afdw_lignin = self.afdw_lignin_ratio)
             kinetic_conditions = kinetics_adjustment(temperature = self.rxn_temp, time = self.rxn_time, afdw_lipid = self.afdw_lipid_ratio, afdw_carbo = self.afdw_carbo_ratio, afdw_protein = self.afdw_protein_ratio, afdw_lignin = self.afdw_lignin_ratio)
             kinetic_weight = np.array(kinetic_conditions) / np.array(kinetic_baseline)
-      #      breakpoint()
+            breakpoint()
             #next, apply to MCA model
             # the following calculations are based on revised MCA model
             # 0.377, 0.481, and 0.154 don't have uncertainties because they are calculated values
