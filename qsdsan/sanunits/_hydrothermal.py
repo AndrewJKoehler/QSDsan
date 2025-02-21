@@ -507,7 +507,25 @@ class HydrothermalLiquefaction(Reactor):
                  vessel_type='Horizontal',
                  CAPEX_factor=1,
                  HTL_steel_cost_factor=2.7, # so the cost matches [6]
-                 mositure_adjustment_exist_in_the_system=False):
+                 mositure_adjustment_exist_in_the_system=False,
+                 HALT_biocrude_C = 0.781,
+                 HALT_aqueous_C = 50.68, #TODO update
+                 HALT_hydrochar_C = 0.00, #TODO update
+                 HALT_gas_C = 0.00, #TODO update
+                 HALT_biocrude_N = 0.0873,
+                 HALT_aqueous_N = 0.7414,
+                 HALT_hydrochar_N = 0.1713,
+                 HALT_aqueous_P = 0.5326,
+                 HALT_hydrochar_P = 0.4674,
+                 HALT_neut_biocrude_C = 0.85,
+                 HALT_neut_aqueous_C = 35.77, #TODO update
+                 HALT_neut_hydrochar_C = 0.00, #TODO update
+                 HALT_neut_gas_C = 0.00, #TODO update
+                 HALT_neut_biocrude_N = 0.0555,
+                 HALT_neut_aqueous_N = 0.4712,
+                 HALT_neut_hydrochar_N = 0.4733,
+                 HALT_neut_aqueous_P = 1,
+                 HALT_neut_hydrochar_P = 0):
         
         SanUnit.__init__(self, ID, ins, outs, thermo, init_with)
         self.HTL_model = HTL_model
@@ -557,6 +575,24 @@ class HydrothermalLiquefaction(Reactor):
         self.CAPEX_factor = CAPEX_factor
         self.HTL_steel_cost_factor = HTL_steel_cost_factor
         self.mositure_adjustment_exist_in_the_system = mositure_adjustment_exist_in_the_system
+        self.HALT_biocrude_C = HALT_biocrude_C
+        self.HALT_aqueous_C = HALT_aqueous_C
+        self.HALT_hydrochar_C = HALT_hydrochar_C 
+        self.HALT_gas_C = HALT_gas_C
+        self.HALT_biocrude_N = HALT_biocrude_N
+        self.HALT_aqueous_N = HALT_aqueous_N
+        self.HALT_hydrochar_N = HALT_hydrochar_N
+        self.HALT_aqueous_P = HALT_aqueous_P
+        self.HALT_hydrochar_P = HALT_hydrochar_P
+        self.HALT_neut_biocrude_C = HALT_neut_biocrude_C
+        self.HALT_neut_aqueous_C = HALT_neut_aqueous_C
+        self.HALT_neut_hydrochar_C = HALT_neut_hydrochar_C
+        self.HALT_neut_gas_C = HALT_neut_gas_C
+        self.HALT_neut_biocrude_N = HALT_neut_biocrude_N
+        self.HALT_neut_aqueous_N = HALT_neut_aqueous_N
+        self.HALT_neut_hydrochar_N = HALT_neut_hydrochar_N
+        self.HALT_neut_aqueous_P = HALT_neut_aqueous_P
+        self.HALT_neut_hydrochar_P = HALT_neut_hydrochar_P
 
     def _run(self):
         
@@ -889,8 +925,8 @@ class HydrothermalLiquefaction(Reactor):
 
             kinetic_baseline = kinetics_adjustment(temperature = 300, time = 60, afdw_lipid = self.afdw_lipid_ratio, afdw_carbo = self.afdw_carbo_ratio, afdw_protein = self.afdw_protein_ratio, afdw_lignin = self.afdw_lignin_ratio)
             kinetic_conditions = kinetics_adjustment(temperature = self.rxn_temp, time = self.rxn_time, afdw_lipid = self.afdw_lipid_ratio, afdw_carbo = self.afdw_carbo_ratio, afdw_protein = self.afdw_protein_ratio, afdw_lignin = self.afdw_lignin_ratio)
-            kinetic_weight = np.array(kinetic_conditions) / np.array(kinetic_baseline)
-            breakpoint()
+            self.kinetic_weight = kinetic_weight = np.array(kinetic_conditions) / np.array(kinetic_baseline)
+ #           breakpoint()
             #next, apply to MCA model
             # the following calculations are based on revised MCA model
             # 0.377, 0.481, and 0.154 don't have uncertainties because they are calculated values
@@ -959,7 +995,9 @@ class HydrothermalLiquefaction(Reactor):
     @property
     def model_type(self):
         return self.HTL_model
-    
+ 
+    #TODO ask Jianan why nitrogen from char is not included
+   
     # yields (for biocrude, aqueous, hydrochar, and gas) are based on afdw
     @property
     def biocrude_yield(self):
@@ -972,7 +1010,7 @@ class HydrothermalLiquefaction(Reactor):
         elif self.HTL_model == 'MCA_adj':
             return (self.protein_2_biocrude*self.afdw_protein_ratio +\
                    self.lipid_2_biocrude*self.afdw_lipid_ratio +\
-                   self.carbo_2_biocrude*self.afdw_carbo_ratio)*kinetic_weight[3] 
+                   self.carbo_2_biocrude*self.afdw_carbo_ratio)*self.kinetic_weight[3] 
                                      
     @property
     def aqueous_yield(self):
@@ -981,7 +1019,7 @@ class HydrothermalLiquefaction(Reactor):
         elif self.HTL_model == 'kinetics':
             return self.aqueous_perc[self.rxn_time]
         elif self.HTL_model == 'MCA_adj':
-            return (0.481*self.afdw_protein_ratio + 0.154*self.afdw_lipid_ratio)*kinetic_weight[1]
+            return (0.481*self.afdw_protein_ratio + 0.154*self.afdw_lipid_ratio)*self.kinetic_weight[1]
     
     @property
     def hydrochar_yield(self):
@@ -990,7 +1028,7 @@ class HydrothermalLiquefaction(Reactor):
         elif self.HTL_model == 'kinetics':
             return self.hydrochar_perc[self.rxn_time]
         elif self.HTL_model == 'MCA_adj':
-            return (0.377*self.afdw_carbo_ratio)*kinetic_weight[0]
+            return (0.377*self.afdw_carbo_ratio)*self.kinetic_weight[0]
         
     @property
     def gas_yield(self):
@@ -999,12 +1037,25 @@ class HydrothermalLiquefaction(Reactor):
         elif self.HTL_model == 'kinetics':
             return self.gas_perc[self.rxn_time]
         elif self.HTL_model == 'MCA_adj':
-            return (self.protein_2_gas*self.afdw_protein_ratio + self.carbo_2_gas*self.afdw_carbo_ratio)*kinetic_weight[2]
+            return (self.protein_2_gas*self.afdw_protein_ratio + self.carbo_2_gas*self.afdw_carbo_ratio)*self.kinetic_weight[2]
+
+#TODO discuss implications of these changes with Jianan
+### gas yield changes if NaOH > 0;        
+        # if self.NaOH_M == 0:
+        #     if self.HTL_model == 'MCA':
+        #         return self.protein_2_gas*self.afdw_protein_ratio + self.carbo_2_gas*self.afdw_carbo_ratio
+        #     elif self.HTL_model == 'kinetics':
+        #         return self.gas_perc[self.rxn_time]
+        #     elif self.HTL_model == 'MCA_adj':
+        #         return (self.protein_2_gas*self.afdw_protein_ratio + self.carbo_2_gas*self.afdw_carbo_ratio)*self.kinetic_weight[2]
+        # else:
+        #     return 0.0009*self.rxn_temp-0.2727 #from equation derived from gasification paper
+
     
     @property
     def biocrude_C_ratio(self):
         return (self.WWTP.AOSc*self.biocrude_C_slope + self.biocrude_C_intercept)/100 # [2]
-    
+        
     @property
     def biocrude_H_ratio(self):
         return (self.WWTP.AOSc*self.biocrude_H_slope + self.biocrude_H_intercept)/100 # [2]
@@ -1012,10 +1063,17 @@ class HydrothermalLiquefaction(Reactor):
     @property
     def biocrude_N_ratio(self):
         return self.biocrude_N_slope*self.WWTP.dw_protein # [2]
-    
+        
+ #TODO  Jianan is min necessary? Could the MCA predicted C ever exceed WWTP C?   
     @property
-    def biocrude_C(self):
-        return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)
+    def biocrude_C(self):       
+        if self.NaOH_M == 0:
+            return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)
+        else:
+            if self.HCl_neut == False:
+                return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*self.HALT_biocrude_C
+            elif self.HCl_neut == True:
+                return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*self.HALT_neut_biocrude_C
     
     @property
     def HTLaqueous_C(self):
@@ -1028,9 +1086,16 @@ class HydrothermalLiquefaction(Reactor):
         return self.outs[2].F_mass*self.biocrude_H_ratio
     
     @property
-    def biocrude_N(self):
-        return min(self.outs[2].F_mass*self.biocrude_N_ratio, self.WWTP.N)
-    
+    def biocrude_N(self):       
+        if self.NaOH_M == 0:
+            return min(self.outs[2].F_mass*self.biocrude_N_ratio, self.WWTP.N)
+        else:
+            if self.HCl_neut == False:
+                return self.WWTP.N*self.HALT_biocrude_N
+            elif self.HCl_neut == True:
+                return self.WWTP.N*self.HALT_neut_biocrude_N
+ #TODO Ask Jianan if I need to include min in return WWTP.N*0.873
+               
     @property
     def biocrude_HHV(self):
         return 30.74 - 8.52*self.WWTP.AOSc + 0.024*self.WWTP.dw_protein # [2]
@@ -1057,16 +1122,46 @@ class HydrothermalLiquefaction(Reactor):
                    self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
     
     @property
-    def hydrochar_P(self):
-        return min(self.WWTP.P*self.hydrochar_P_recovery_ratio, self.outs[0].F_mass)
-    
+    def hydrochar_P(self):       
+        if self.NaOH_M == 0:
+            return min(self.WWTP.P*self.hydrochar_P_recovery_ratio, self.outs[0].F_mass)
+        else:
+            if self.HCl_neut == False:
+#                return self.WWTP.P*self.HALT_hydrochar_P
+                return self.WWTP.P*(1-self.HALT_aqueous_P)
+            elif self.HCl_neut == True:
+#                return self.WWTP.P*self.HALT_neut_hydrochar_P
+                return self.WWTP.P*(1-self.HALT_neut_aqueous_P)
+
+#TODO determine if hydrochar has high amounts of N; if not, determine if this is in gas phase, or aq phase
+    # @property
+    # def hydrochar_N(self):       
+    #     if self.NaOH_M == 0:
+    #         return min(self.WWTP.P*self.hydrochar_P_recovery_ratio, self.outs[0].F_mass)
+    #     else:
+    #         if self.HCl_neut == False:
+    #             return self.WWTP.P*(1-self.HALT_aqueous_P)
+    #         elif self.HCl_neut == True:
+    #             return self.WWTP.P*(1-self.HALT_neut_aqueous_P)    
     @property
-    def HTLaqueous_N(self):
-        return self.WWTP.N - self.biocrude_N
+    def HTLaqueous_N(self):       
+        if self.NaOH_M == 0:
+            return self.WWTP.N - self.biocrude_N
+        else:
+            if self.HCl_neut == False:
+                return self.WWTP.N*self.HALT_aqueous_N
+            elif self.HCl_neut == True:
+                return self.WWTP.N*self.HALT_neut_aqueous_N
     
     @property
     def HTLaqueous_P(self):
-        return self.WWTP.P*(1 - self.hydrochar_P_recovery_ratio)
+        if self.NaOH_M == 0:
+            return self.WWTP.P*(1 - self.hydrochar_P_recovery_ratio)
+        else:
+            if self.HCl_neut == False:
+                return self.WWTP.P*self.HALT_aqueous_P
+            elif self.HCl_neut == True:
+                return self.WWTP.P*self.HALT_neut_aqueous_P
     
     def _design(self):
         
