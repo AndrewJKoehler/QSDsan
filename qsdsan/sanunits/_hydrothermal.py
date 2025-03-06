@@ -1111,15 +1111,16 @@ class HydrothermalLiquefaction(Reactor):
                 self.HTL_type_adj = self.HALT_neut_biocrude_C
          #for kinetic and MCA_adj, C is a ratio of yields; e.g. if biocrude yield is doubled, biocrude_C should double
          #this ensures that the ratio of biocrude C is equivalent in each case               
-        if self.HTL_model == 'MCA':
-            return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*self.HTL_type_adj
-        else:
-            MCA_biocrude_yield = self.protein_2_biocrude*self.afdw_protein_ratio +\
-                    self.lipid_2_biocrude*self.afdw_lipid_ratio +\
-                    self.carbo_2_biocrude*self.afdw_carbo_ratio
-            model_yield = self.biocrude_yield
-            yield_ratio = model_yield/MCA_biocrude_yield
-            return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*yield_ratio*self.HTL_type_adj
+        # if self.HTL_model == 'MCA':
+        #     return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*self.HTL_type_adj
+        # else:
+        #     MCA_biocrude_yield = self.protein_2_biocrude*self.afdw_protein_ratio +\
+        #             self.lipid_2_biocrude*self.afdw_lipid_ratio +\
+        #             self.carbo_2_biocrude*self.afdw_carbo_ratio
+        #     model_yield = self.biocrude_yield
+        #     yield_ratio = model_yield/MCA_biocrude_yield
+        #     return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*yield_ratio*self.HTL_type_adj
+        return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*self.HTL_type_adj
 
      
     @property
@@ -1137,9 +1138,7 @@ class HydrothermalLiquefaction(Reactor):
             return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
                        self.WWTP.dw_protein*100/1000000/self.TOC_TC,
                        self.WWTP.C - self.biocrude_C)*yield_ratio        
-
             
-    
     @property
     def biocrude_H(self):
         return self.outs[2].F_mass*self.biocrude_H_ratio
@@ -1180,13 +1179,15 @@ class HydrothermalLiquefaction(Reactor):
         if self.HTL_model == 'MCA':
             return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
                        self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
-        # else:
-        #     MCA_hydrochar_yield = 0.377*self.afdw_carbo_ratio
-        #     increase = self.hydrochar_yield/MCA_hydrochar_yield
-        #     return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
-        #                self.biocrude_C - self.HTLaqueous_C - self.offgas_C)*increase
         else:
-                return (self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
+            MCA_hydrochar_yield = 0.377*self.afdw_carbo_ratio
+            model_yield = self.hydrochar_yield
+            yield_ratio = model_yield/MCA_hydrochar_yield
+            return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+                        self.biocrude_C - self.HTLaqueous_C - self.offgas_C)*yield_ratio
+            
+        # else:
+        #         return (self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
     
     @property
     def hydrochar_P(self):       
