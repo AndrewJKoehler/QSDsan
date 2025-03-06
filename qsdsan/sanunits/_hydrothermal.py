@@ -76,6 +76,7 @@ class CatalyticHydrothermalGasification(Reactor):
         
     References
     ----------
+    #TODO look at #1, steam reforming
     [1] Jones, S. B.; Zhu, Y.; Anderson, D. B.; Hallen, R. T.; Elliott, D. C.; 
         Schmidt, A. J.; Albrecht, K. O.; Hart, T. R.; Butcher, M. G.; Drennan, C.; 
         Snowden-Swan, L. J.; Davis, R.; Kinchin, C. 
@@ -163,7 +164,7 @@ class CatalyticHydrothermalGasification(Reactor):
         self.CAPEX_factor = CAPEX_factor
         
     def _run(self):
-        
+#TODO consider deleting all catalyst in and out information        
         chg_in, catalyst_in = self.ins
         chg_out, catalyst_out = self.outs
         
@@ -604,6 +605,7 @@ class HydrothermalLiquefaction(Reactor):
         
         dewatered_sludge, NaOH_in, PFAS_in, HCl_in = self.ins
         hydrochar, HTLaqueous, biocrude, offgas = self.outs
+        self.dewatered_sludge, self.NaOH_in, self.PFAS_in, self.HCl_in, self.hydrochar, self.HTLaqueous, self.biocrude, self.offgas = dewatered_sludge, NaOH_in, PFAS_in, HCl_in, hydrochar, HTLaqueous, biocrude, offgas 
         
         if self.mositure_adjustment_exist_in_the_system == True:
             self.WWTP = self.ins[0]._source.ins[0]._source.ins[0].\
@@ -626,8 +628,9 @@ class HydrothermalLiquefaction(Reactor):
         # Molarity * volume in L = moles
         # dewatered_sludge.imass['H2O'] is water mass in kg, converted to L (1 kg water = 1 L water)
         # divide by mass of dewatered_sludge_afdw
+
+        self.destruction_potential = (self.NaOH_M*dewatered_sludge.ivol['H2O']*1000)/(self.dewatered_sludge_afdw+dewatered_sludge.imass['Sludge_ash'])
         
-        destruction_potential = (self.NaOH_M*dewatered_sludge.ivol['H2O']*1000)/(self.dewatered_sludge_afdw+dewatered_sludge.imass['Sludge_ash'])
         # destruction_potential is mol of NaOH/kg of wastewater solid
         
         
@@ -674,15 +677,11 @@ class HydrothermalLiquefaction(Reactor):
         k_emp_rxntemp_PFOS = math.exp(-Ea_sub_R_PFOS*(1/(self.rxn_temp+273.15)-1/(350+273.15))+math.log(k_emp350PFOS))
         k_emp_rxntemp_PFHxS = math.exp(-Ea_sub_R_PFHxS*(1/(self.rxn_temp+273.15)-1/(350+273.15))+math.log(k_emp350PFHxS))
 
-        self.PFOS_dest = math.exp(-k_emp_rxntemp_PFOS*destruction_potential*self.rxn_time)      
-        self.PFOA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
-        self.PFHxS_dest = math.exp(-k_emp_rxntemp_PFHxS*destruction_potential*self.rxn_time)
-        self.PFHxA_dest = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
-# <<<<<<< HEAD
+        self.PFOS_remain = math.exp(-k_emp_rxntemp_PFOS*self.destruction_potential*self.rxn_time)      
+        self.PFOA_remain = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
+        self.PFHxS_remain = math.exp(-k_emp_rxntemp_PFHxS*self.destruction_potential*self.rxn_time)
+        self.PFHxA_remain = 1 # values from experiment - all PFCAs destroyed w/ or w/o alkali
 
-# =======
-        
-# >>>>>>> 8ab488799032b6d53ef106f7f997292d5900d5df
         self.afdw_lipid_ratio = self.WWTP.afdw_lipid
         self.afdw_protein_ratio = self.WWTP.afdw_protein
         self.afdw_carbo_ratio = self.WWTP.afdw_carbo
@@ -695,10 +694,21 @@ class HydrothermalLiquefaction(Reactor):
             HCl_in.imass['HCl'] = 0
         
         # pH calculations
-        if destruction_potential <= 30:
-            self.aq_pH = 0.1747*destruction_potential+9.85
+        if self.destruction_potential <= 30:
+            self.aq_pH = 0.1747*self.destruction_potential+9.85
         else:
             self.aq_pH = 14
+        
+        #change in gas composition with NaOH concentration
+        if self.NaOH_M <= 1.67: #at NaOH 1.67M and higher, all gases are H2; below, assumed proportional amounts of HTL mixture and H2
+            NaOH_factor = self.NaOH_M/1.67
+            self.gas_composition['CH4'] = self.gas_composition['CH4'] * (1-NaOH_factor)
+            self.gas_composition['C2H6'] = self.gas_composition['C2H6'] * (1-NaOH_factor)
+            self.gas_composition['CO2'] = self.gas_composition['CO2'] * (1-NaOH_factor)
+            self.gas_composition['H2'] = NaOH_factor
+        elif self.NaOH_M > 1.67:
+            self.gas_composition={'CH4':0.00, 'C2H6':0.00,'CO2':0.00, 'H2':100.00}
+            
         
         if self.HTL_model == 'kinetics':
             #allow reaction time to run past 1 hr
@@ -785,8 +795,8 @@ class HydrothermalLiquefaction(Reactor):
             hydrochar.imass['Hydrochar'] = self.hydrochar_perc[kin_time]*self.dewatered_sludge_afdw
             
             # 2% of PFOS and 2% of PFHxS go to hydrochar post HTL, Yu et al. 2020
-            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.02
-            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.02
+            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(self.PFOS_remain)*0.02
+            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(self.PFHxS_remain)*0.02
             
             # HTLaqueous is just the TDS in the aqueous phase
             HTLaqueous.imass['HTLaqueous'] = self.aqueous_perc[kin_time]*self.dewatered_sludge_afdw
@@ -802,8 +812,8 @@ class HydrothermalLiquefaction(Reactor):
                                     biocrude.imass['Biocrude']
             
             # 98% of PFOS and 98% PFHxS go to biocrude post HTL, Yu et al. 2020
-            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.98
-            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.98
+            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(self.PFOS_remain)*0.98
+            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(self.PFHxS_remain)*0.98
         
         elif self.HTL_model == 'MCA':
             # the following calculations are based on revised MCA model
@@ -811,8 +821,8 @@ class HydrothermalLiquefaction(Reactor):
             hydrochar.imass['Hydrochar'] = 0.377*self.afdw_carbo_ratio*dewatered_sludge_afdw
             
             # 2% of PFOS and 2% of PFHxS go to hydrochar post HTL, Yu et al. 2020
-            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.02
-            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.02
+            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(self.PFOS_remain)*0.02
+            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(self.PFHxS_remain)*0.02
             
             # HTLaqueous is just the TDS in the aqueous phase
             HTLaqueous.imass['HTLaqueous'] = (0.481*self.afdw_protein_ratio +\
@@ -833,8 +843,8 @@ class HydrothermalLiquefaction(Reactor):
                                     biocrude.imass['Biocrude']
             
             # 98% of PFOS and 98% PFHxS go to biocrude post HTL, Yu et al. 2020
-            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.98
-            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.98
+            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(self.PFOS_remain)*0.98
+            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(self.PFHxS_remain)*0.98
  
             
         elif self.HTL_model == 'MCA_adj':
@@ -933,8 +943,8 @@ class HydrothermalLiquefaction(Reactor):
             hydrochar.imass['Hydrochar'] = 0.377*self.afdw_carbo_ratio*dewatered_sludge_afdw*kinetic_weight[0]
             
             # 2% of PFOS and 2% of PFHxS go to hydrochar post HTL, Yu et al. 2020
-            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.02
-            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.02
+            hydrochar.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(self.PFOS_remain)*0.02
+            hydrochar.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(self.PFHxS_remain)*0.02
             
             # HTLaqueous is just the TDS in the aqueous phase
             HTLaqueous.imass['HTLaqueous'] = (0.481*self.afdw_protein_ratio +\
@@ -955,10 +965,9 @@ class HydrothermalLiquefaction(Reactor):
                                     biocrude.imass['Biocrude']
             
             # 98% of PFOS and 98% PFHxS go to biocrude post HTL, Yu et al. 2020
-            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(1-self.PFOS_dest)*0.98
-            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(1-self.PFHxS_dest)*0.98
-               
- ##########           
+            biocrude.imass['C8HF17O3S'] = PFAS_in.imass['C8HF17O3S']*(self.PFOS_remain)*0.98
+            biocrude.imass['C6HF13O3S'] = PFAS_in.imass['C6HF13O3S']*(self.PFHxS_remain)*0.98
+                
           
         # assume ash (all soluble based on Jones) and all other chemicals go to water
         HTLaqueous.imass['H2O'] = dewatered_sludge.F_mass + NaOH_in.F_mass + PFAS_in.F_mass +\
@@ -975,7 +984,34 @@ class HydrothermalLiquefaction(Reactor):
         offgas.P = self.offgas_pre
         
         for stream in self.outs: stream.T = self.heat_exchanger.T
+
     
+ #PFAS properties  
+    @property
+    def biocrude_PFOS(self):
+        return self.biocrude.imass['C8HF17O3S']
+    
+    @property
+    def biocrude_PFHxS(self):
+        return self.biocrude.imass['C6HF13O3S']
+    
+    @property
+    def hydrochar_PFOS(self):
+        return self.hydrochar.imass['C8HF17O3S']
+    
+    @property
+    def hydrochar_PFHxS(self):
+        return self.hydrochar.imass['C6HF13O3S']
+    
+    @property
+    def PFOS_destruction(self): 
+        return 1-self.PFOS_remain
+
+    @property
+    def PFHxS_destruction(self): 
+        return 1-self.PFHxS_remain
+ 
+#HTL/HALT properties    
     @property
     def aqueous_pH(self):
         return self.aq_pH   
@@ -996,7 +1032,6 @@ class HydrothermalLiquefaction(Reactor):
     def model_type(self):
         return self.HTL_model
  
-    #TODO ask Jianan why nitrogen from char is not included
    
     # yields (for biocrude, aqueous, hydrochar, and gas) are based on afdw
     @property
@@ -1064,22 +1099,46 @@ class HydrothermalLiquefaction(Reactor):
     def biocrude_N_ratio(self):
         return self.biocrude_N_slope*self.WWTP.dw_protein # [2]
         
- #TODO  Jianan is min necessary? Could the MCA predicted C ever exceed WWTP C?   
     @property
-    def biocrude_C(self):       
+    def biocrude_C(self):
+        #creates variable self.HTL_type_adj; multiplied by biocrude_C to adjust increase or decrease in C content based on experimental conditions for HALT, HALT + HCl neutralization
         if self.NaOH_M == 0:
-            return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)
+            self.HTL_type_adj = 1
         else:
             if self.HCl_neut == False:
-                return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*self.HALT_biocrude_C
+                self.HTL_type_adj = self.HALT_biocrude_C
             elif self.HCl_neut == True:
-                return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*self.HALT_neut_biocrude_C
-    
+                self.HTL_type_adj = self.HALT_neut_biocrude_C
+         #for kinetic and MCA_adj, C is a ratio of yields; e.g. if biocrude yield is doubled, biocrude_C should double
+         #this ensures that the ratio of biocrude C is equivalent in each case               
+        if self.HTL_model == 'MCA':
+            return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*self.HTL_type_adj
+        else:
+            MCA_biocrude_yield = self.protein_2_biocrude*self.afdw_protein_ratio +\
+                    self.lipid_2_biocrude*self.afdw_lipid_ratio +\
+                    self.carbo_2_biocrude*self.afdw_carbo_ratio
+            model_yield = self.biocrude_yield
+            yield_ratio = model_yield/MCA_biocrude_yield
+            return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*yield_ratio*self.HTL_type_adj
+
+     
     @property
     def HTLaqueous_C(self):
-        return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
-                   self.WWTP.dw_protein*100/1000000/self.TOC_TC,
-                   self.WWTP.C - self.biocrude_C)
+        if self.HTL_model == 'MCA':
+            return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
+                       self.WWTP.dw_protein*100/1000000/self.TOC_TC,
+                       self.WWTP.C - self.biocrude_C)
+        #for kinetic and MCA_adj, C is a ratio of yields; e.g. if aqueous yield is doubled, aqueous_C should double
+        #this ensures that the ratio of aqueous C is equivalent in each case
+        else:
+            MCA_aq_yield = 0.481*self.afdw_protein_ratio + 0.154*self.afdw_lipid_ratio
+            model_yield = self.aqueous_yield
+            yield_ratio = model_yield/MCA_aq_yield
+            return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
+                       self.WWTP.dw_protein*100/1000000/self.TOC_TC,
+                       self.WWTP.C - self.biocrude_C)*yield_ratio        
+
+            
     
     @property
     def biocrude_H(self):
@@ -1118,8 +1177,16 @@ class HydrothermalLiquefaction(Reactor):
     
     @property
     def hydrochar_C(self):
-        return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
-                   self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
+        if self.HTL_model == 'MCA':
+            return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+                       self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
+        # else:
+        #     MCA_hydrochar_yield = 0.377*self.afdw_carbo_ratio
+        #     increase = self.hydrochar_yield/MCA_hydrochar_yield
+        #     return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+        #                self.biocrude_C - self.HTLaqueous_C - self.offgas_C)*increase
+        else:
+                return (self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
     
     @property
     def hydrochar_P(self):       
@@ -1137,12 +1204,13 @@ class HydrothermalLiquefaction(Reactor):
     # @property
     # def hydrochar_N(self):       
     #     if self.NaOH_M == 0:
-    #         return min(self.WWTP.P*self.hydrochar_P_recovery_ratio, self.outs[0].F_mass)
+    #         return min(self.WWTP.P*self.hydrochar_N_recovery_ratio, self.outs[0].F_mass)
     #     else:
     #         if self.HCl_neut == False:
-    #             return self.WWTP.P*(1-self.HALT_aqueous_P)
+    #             return self.WWTP.N*(1-self.HALT_aqueous_N)
     #         elif self.HCl_neut == True:
-    #             return self.WWTP.P*(1-self.HALT_neut_aqueous_P)    
+    #             return self.WWTP.N*(1-self.HALT_neut_aqueous_N)    
+    
     @property
     def HTLaqueous_N(self):       
         if self.NaOH_M == 0:
@@ -1210,3 +1278,9 @@ class HydrothermalLiquefaction(Reactor):
             for item in purchase_costs.keys():
                 purchase_costs[item] *= self.CAPEX_factor
                 installed_costs[item] *= self.CAPEX_factor
+                
+
+ 
+ 
+ 
+ 
