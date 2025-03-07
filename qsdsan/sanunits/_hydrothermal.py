@@ -511,8 +511,7 @@ class HydrothermalLiquefaction(Reactor):
                  mositure_adjustment_exist_in_the_system=False,
                  HALT_biocrude_C = 0.781,
                  HALT_aqueous_C = 50.68, #TODO update
-                 HALT_hydrochar_C = 0.00, #TODO update
-                 HALT_gas_C = 0.00, #TODO update
+                 HALT_hydrochar_C = 0.20,
                  HALT_biocrude_N = 0.0873,
                  HALT_aqueous_N = 0.7414,
                  HALT_hydrochar_N = 0.1713,
@@ -520,8 +519,6 @@ class HydrothermalLiquefaction(Reactor):
                  HALT_hydrochar_P = 0.4674,
                  HALT_neut_biocrude_C = 0.85,
                  HALT_neut_aqueous_C = 35.77, #TODO update
-                 HALT_neut_hydrochar_C = 0.00, #TODO update
-                 HALT_neut_gas_C = 0.00, #TODO update
                  HALT_neut_biocrude_N = 0.0555,
                  HALT_neut_aqueous_N = 0.4712,
                  HALT_neut_hydrochar_N = 0.4733,
@@ -579,7 +576,6 @@ class HydrothermalLiquefaction(Reactor):
         self.HALT_biocrude_C = HALT_biocrude_C
         self.HALT_aqueous_C = HALT_aqueous_C
         self.HALT_hydrochar_C = HALT_hydrochar_C 
-        self.HALT_gas_C = HALT_gas_C
         self.HALT_biocrude_N = HALT_biocrude_N
         self.HALT_aqueous_N = HALT_aqueous_N
         self.HALT_hydrochar_N = HALT_hydrochar_N
@@ -587,8 +583,6 @@ class HydrothermalLiquefaction(Reactor):
         self.HALT_hydrochar_P = HALT_hydrochar_P
         self.HALT_neut_biocrude_C = HALT_neut_biocrude_C
         self.HALT_neut_aqueous_C = HALT_neut_aqueous_C
-        self.HALT_neut_hydrochar_C = HALT_neut_hydrochar_C
-        self.HALT_neut_gas_C = HALT_neut_gas_C
         self.HALT_neut_biocrude_N = HALT_neut_biocrude_N
         self.HALT_neut_aqueous_N = HALT_neut_aqueous_N
         self.HALT_neut_hydrochar_N = HALT_neut_hydrochar_N
@@ -1121,23 +1115,7 @@ class HydrothermalLiquefaction(Reactor):
         #     yield_ratio = model_yield/MCA_biocrude_yield
         #     return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*yield_ratio*self.HTL_type_adj
         return min(self.outs[2].F_mass*self.biocrude_C_ratio, self.WWTP.C)*self.HTL_type_adj
-
-     
-    @property
-    def HTLaqueous_C(self):
-        if self.HTL_model == 'MCA':
-            return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
-                       self.WWTP.dw_protein*100/1000000/self.TOC_TC,
-                       self.WWTP.C - self.biocrude_C)
-        #for kinetic and MCA_adj, C is a ratio of yields; e.g. if aqueous yield is doubled, aqueous_C should double
-        #this ensures that the ratio of aqueous C is equivalent in each case
-        else:
-            MCA_aq_yield = 0.481*self.afdw_protein_ratio + 0.154*self.afdw_lipid_ratio
-            model_yield = self.aqueous_yield
-            yield_ratio = model_yield/MCA_aq_yield
-            return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
-                       self.WWTP.dw_protein*100/1000000/self.TOC_TC,
-                       self.WWTP.C - self.biocrude_C)*yield_ratio        
+      
             
     @property
     def biocrude_H(self):
@@ -1152,7 +1130,6 @@ class HydrothermalLiquefaction(Reactor):
                 return self.WWTP.N*self.HALT_biocrude_N
             elif self.HCl_neut == True:
                 return self.WWTP.N*self.HALT_neut_biocrude_N
- #TODO Ask Jianan if I need to include min in return WWTP.N*0.873
                
     @property
     def biocrude_HHV(self):
@@ -1163,12 +1140,61 @@ class HydrothermalLiquefaction(Reactor):
         return self.biocrude_HHV*self.outs[2].imass['Biocrude']/\
                (self.WWTP.outs[0].F_mass -\
                 self.WWTP.outs[0].imass['H2O'])/self.WWTP.HHV # [2]
+
+    # @property
+    # def HTLaqueous_C(self):
+    #     if self.HTL_model == 'MCA':
+    #         return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
+    #                     self.WWTP.dw_protein*100/1000000/self.TOC_TC,
+    #                     self.WWTP.C - self.biocrude_C)
+    #     #for kinetic and MCA_adj, C is a ratio of yields; e.g. if aqueous yield is doubled, aqueous_C should double
+    #     #this ensures that the ratio of aqueous C is equivalent in each case
+    #     else:
+    #         MCA_aq_yield = 0.481*self.afdw_protein_ratio + 0.154*self.afdw_lipid_ratio
+    #         model_yield = self.aqueous_yield
+    #         yield_ratio = model_yield/MCA_aq_yield
+    #         return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
+    #                     self.WWTP.dw_protein*100/1000000/self.TOC_TC,
+    #                     self.WWTP.C - self.biocrude_C)*yield_ratio  
+                
+    # @property
+    # def offgas_C(self):
+    #     carbon = sum(self.outs[3].imass[self.gas_composition]*
+    #                   [cmp.i_C for cmp in self.components[self.gas_composition]])
+    #     return min(carbon, self.WWTP.C - self.biocrude_C - self.HTLaqueous_C)
     
+    # @property
+    # def hydrochar_C_ratio(self):
+    #     return min(self.hydrochar_C_slope*self.WWTP.dw_carbo, 0.65) # [2]
+    
+    # @property
+    # def hydrochar_C(self):
+    #     if self.NaOH_M == 0:
+    #         if self.HTL_model == 'MCA':
+    #             return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+    #                         self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
+    #         else:
+    #             MCA_hydrochar_yield = 0.377*self.afdw_carbo_ratio
+    #             model_yield = self.hydrochar_yield
+    #             yield_ratio = model_yield/MCA_hydrochar_yield
+    #             return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+    #                         self.biocrude_C - self.HTLaqueous_C - self.offgas_C)*yield_ratio
+    #     else:
+    #         if self.HTL_model == 'MCA':
+    #             return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+    #                         self.biocrude_C - self.HTLaqueous_C - self.offgas_C)*self.HALT_hydrochar_C
+    #         else:
+    #             MCA_hydrochar_yield = 0.377*self.afdw_carbo_ratio
+    #             model_yield = self.hydrochar_yield
+    #             yield_ratio = model_yield/MCA_hydrochar_yield
+    #             return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+    #                         self.biocrude_C - self.HTLaqueous_C - self.offgas_C)*yield_ratio*self.HALT_hydrochar_C
+############################## New order, necessary so all unaccounted for C in NaOH, NaOH+HCl conditions goes to                 
     @property
     def offgas_C(self):
         carbon = sum(self.outs[3].imass[self.gas_composition]*
-                     [cmp.i_C for cmp in self.components[self.gas_composition]])
-        return min(carbon, self.WWTP.C - self.biocrude_C - self.HTLaqueous_C)
+                      [cmp.i_C for cmp in self.components[self.gas_composition]])
+        return min(carbon, self.WWTP.C - self.biocrude_C)
     
     @property
     def hydrochar_C_ratio(self):
@@ -1176,19 +1202,47 @@ class HydrothermalLiquefaction(Reactor):
     
     @property
     def hydrochar_C(self):
-        if self.HTL_model == 'MCA':
-            return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
-                       self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
+        if self.NaOH_M == 0:
+            if self.HTL_model == 'MCA':
+                return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+                            self.biocrude_C - self.offgas_C)
+            else:
+                MCA_hydrochar_yield = 0.377*self.afdw_carbo_ratio
+                model_yield = self.hydrochar_yield
+                yield_ratio = model_yield/MCA_hydrochar_yield
+                return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+                            self.biocrude_C - self.offgas_C)*yield_ratio
         else:
-            MCA_hydrochar_yield = 0.377*self.afdw_carbo_ratio
-            model_yield = self.hydrochar_yield
-            yield_ratio = model_yield/MCA_hydrochar_yield
-            return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
-                        self.biocrude_C - self.HTLaqueous_C - self.offgas_C)*yield_ratio
-            
-        # else:
-        #         return (self.biocrude_C - self.HTLaqueous_C - self.offgas_C)
-    
+            if self.HTL_model == 'MCA':
+                return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+                            self.biocrude_C - self.offgas_C)*self.HALT_hydrochar_C
+            else:
+                MCA_hydrochar_yield = 0.377*self.afdw_carbo_ratio
+                model_yield = self.hydrochar_yield
+                yield_ratio = model_yield/MCA_hydrochar_yield
+                return min(self.outs[0].F_mass*self.hydrochar_C_ratio, self.WWTP.C -\
+                            self.biocrude_C - self.offgas_C)*yield_ratio*self.HALT_hydrochar_C
+    @property
+    def HTLaqueous_C(self):
+        if self.NaOH_M == 0:
+            if self.HTL_model == 'MCA':
+                return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
+                            self.WWTP.dw_protein*100/1000000/self.TOC_TC,
+                            self.WWTP.C - self.biocrude_C)
+            #for kinetic and MCA_adj, C is a ratio of yields; e.g. if aqueous yield is doubled, aqueous_C should double
+            #this ensures that the ratio of aqueous C is equivalent in each case
+            else:
+                MCA_aq_yield = 0.481*self.afdw_protein_ratio + 0.154*self.afdw_lipid_ratio
+                model_yield = self.aqueous_yield
+                yield_ratio = model_yield/MCA_aq_yield
+                return min(self.outs[1].F_vol*1000*self.HTLaqueous_C_slope*\
+                            self.WWTP.dw_protein*100/1000000/self.TOC_TC,
+                            self.WWTP.C - self.biocrude_C)*yield_ratio
+        else:
+            return (self.WWTP.C - self.biocrude_C - self.offgas_C - self.hydrochar_C)
+                    
+                
+###############################################                
     @property
     def hydrochar_P(self):       
         if self.NaOH_M == 0:

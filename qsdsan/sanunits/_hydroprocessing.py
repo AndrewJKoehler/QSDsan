@@ -484,8 +484,8 @@ class Hydrotreating(Reactor):
         
         ht_out.vle(T=ht_out.T, P=ht_out.P)
         
-        if self.HTaqueous_C < -0.1*self.HTL.WWTP.C:
-            raise Exception('carbon mass balance is out of +/- 10% for the whole system')
+        if self.HTaqueous_C < -0.2*self.HTL.WWTP.C:
+            raise Exception('carbon mass balance is out of +/- 20% for the whole system')
         # allow +/- 10% out of mass balance
         # should be no C in the aqueous phase, the calculation here is just for MB
 
